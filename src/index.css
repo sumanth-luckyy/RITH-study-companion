@@ -1,0 +1,251 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Study Companion - Design System with Dark Mode */
+
+@layer base {
+  :root {
+    /* Light Theme - Soft, professional academic palette */
+    --background: 220 20% 97%;
+    --foreground: 224 30% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 224 30% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 224 30% 15%;
+
+    /* Primary - Deep Indigo */
+    --primary: 238 55% 50%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 238 55% 65%;
+
+    /* Secondary - Soft Slate */
+    --secondary: 220 14% 92%;
+    --secondary-foreground: 224 30% 25%;
+
+    /* Muted */
+    --muted: 220 14% 94%;
+    --muted-foreground: 220 10% 45%;
+
+    /* Accent - Warm Amber */
+    --accent: 38 95% 55%;
+    --accent-foreground: 38 95% 15%;
+
+    /* Success - Teal */
+    --success: 165 60% 40%;
+    --success-foreground: 0 0% 100%;
+
+    /* Info - Blue */
+    --info: 210 90% 55%;
+    --info-foreground: 0 0% 100%;
+
+    /* Warning - Orange */
+    --warning: 25 95% 55%;
+    --warning-foreground: 25 95% 10%;
+
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 14% 88%;
+    --input: 220 14% 88%;
+    --ring: 238 55% 50%;
+
+    --radius: 0.75rem;
+
+    /* Sidebar */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 224 30% 25%;
+    --sidebar-primary: 238 55% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 238 55% 96%;
+    --sidebar-accent-foreground: 238 55% 40%;
+    --sidebar-border: 220 14% 92%;
+    --sidebar-ring: 238 55% 50%;
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 hsl(224 30% 15% / 0.04);
+    --shadow-md: 0 4px 12px -2px hsl(224 30% 15% / 0.08), 0 2px 4px -2px hsl(224 30% 15% / 0.04);
+    --shadow-lg: 0 12px 32px -8px hsl(224 30% 15% / 0.12), 0 4px 8px -4px hsl(224 30% 15% / 0.06);
+    --shadow-glow: 0 0 24px hsl(238 55% 50% / 0.25);
+  }
+
+  .dark {
+    --background: 224 30% 8%;
+    --foreground: 220 20% 95%;
+
+    --card: 224 25% 12%;
+    --card-foreground: 220 20% 95%;
+
+    --popover: 224 25% 12%;
+    --popover-foreground: 220 20% 95%;
+
+    --primary: 238 55% 60%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 238 55% 70%;
+
+    --secondary: 224 20% 18%;
+    --secondary-foreground: 220 20% 85%;
+
+    --muted: 224 20% 16%;
+    --muted-foreground: 220 10% 55%;
+
+    --accent: 38 95% 55%;
+    --accent-foreground: 38 95% 95%;
+
+    --success: 165 60% 45%;
+    --success-foreground: 0 0% 100%;
+
+    --info: 210 90% 60%;
+    --info-foreground: 0 0% 100%;
+
+    --warning: 25 95% 55%;
+    --warning-foreground: 25 95% 10%;
+
+    --destructive: 0 72% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 224 20% 20%;
+    --input: 224 20% 20%;
+    --ring: 238 55% 60%;
+
+    --sidebar-background: 224 25% 10%;
+    --sidebar-foreground: 220 20% 85%;
+    --sidebar-primary: 238 55% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 238 50% 20%;
+    --sidebar-accent-foreground: 238 55% 80%;
+    --sidebar-border: 224 20% 18%;
+    --sidebar-ring: 238 55% 60%;
+
+    --shadow-sm: 0 1px 2px 0 hsl(0 0% 0% / 0.2);
+    --shadow-md: 0 4px 12px -2px hsl(0 0% 0% / 0.3), 0 2px 4px -2px hsl(0 0% 0% / 0.2);
+    --shadow-lg: 0 12px 32px -8px hsl(0 0% 0% / 0.4), 0 4px 8px -4px hsl(0 0% 0% / 0.3);
+    --shadow-glow: 0 0 24px hsl(238 55% 60% / 0.3);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    font-family: 'Plus Jakarta Sans', 'Noto Sans Arabic', system-ui, sans-serif;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+}
+
+@layer components {
+
+  /* Card hover effect */
+  .card-hover {
+    @apply transition-all duration-300 ease-out;
+  }
+
+  .card-hover:hover {
+    @apply shadow-lg -translate-y-1;
+  }
+
+  /* Glass effect */
+  .glass {
+    @apply bg-card/80 backdrop-blur-xl border border-border/50;
+  }
+
+  /* Gradient text */
+  .gradient-text {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-glow)));
+  }
+
+  /* Dashboard stat card */
+  .stat-card {
+    @apply bg-card rounded-2xl border border-border p-4 md:p-5 transition-all duration-300;
+  }
+
+  .stat-card:hover {
+    @apply shadow-md border-primary/20;
+  }
+
+  /* Sidebar item styles */
+  .sidebar-item {
+    @apply flex items-center gap-3 px-3 md:px-4 py-2.5 md:py-3 rounded-xl text-sidebar-foreground transition-all duration-200 text-left;
+  }
+
+  .sidebar-item:hover {
+    @apply bg-sidebar-accent text-sidebar-accent-foreground;
+  }
+
+  .sidebar-item.active {
+    @apply bg-primary text-primary-foreground shadow-md;
+  }
+
+  /* Form input focus */
+  .form-input {
+    @apply w-full rounded-xl border-2 border-input bg-background px-3 md:px-4 py-2.5 md:py-3 text-sm md:text-base text-foreground transition-all duration-200;
+    @apply focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary;
+    @apply placeholder:text-muted-foreground;
+  }
+
+  /* Page header */
+  .page-header {
+    @apply mb-6 md:mb-8;
+  }
+
+  .page-header h1 {
+    @apply text-2xl md:text-3xl font-bold text-foreground mb-2;
+  }
+
+  .page-header p {
+    @apply text-muted-foreground;
+  }
+}
+
+@layer utilities {
+
+  /* Smooth scrollbar */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/30;
+  }
+
+  /* Line clamp */
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
