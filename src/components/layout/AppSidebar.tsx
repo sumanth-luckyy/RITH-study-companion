@@ -29,6 +29,7 @@ import {
   Clock,
   Sparkles,
   Building,
+  FolderGit2,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -53,6 +54,7 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
   const studentNavItems = [
     { icon: Home, label: 'Home', path: '/dashboard' },
     { icon: BookOpen, label: 'My Subjects', path: '/subjects' },
+    { icon: FolderGit2, label: 'Drive Courses', path: '/courses' },
     { icon: CheckSquare, label: 'Assignments', path: '/assignments' },
     { icon: Calendar, label: 'Timetable', path: '/timetable' },
     { icon: FileText, label: 'Notes & Resources', path: '/resources' },
@@ -73,7 +75,6 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
   const adminHierarchyItems = [
     { icon: Building, label: 'Departments', path: '/admin/hierarchy' },
     { icon: GitFork, label: 'Branches', path: '/admin/hierarchy' },
-    { icon: Sparkles, label: 'Sub-Branches', path: '/admin/hierarchy' },
     { icon: Calendar, label: 'Academic Years', path: '/admin/hierarchy' },
     { icon: Layers, label: 'Classes', path: '/admin/hierarchy' },
     { icon: Hash, label: 'Sections', path: '/admin/hierarchy' },
@@ -262,6 +263,7 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
                 </p>
                 {[
                   { icon: BookOpen, label: 'Subjects', path: '/admin/subjects' },
+                  { icon: FolderGit2, label: 'Drive Courses', path: '/admin/courses' },
                   { icon: FileText, label: 'Resources & Cloud Files', path: '/admin/resources' },
                   { icon: CheckSquare, label: 'Assignments', path: '/admin/assignments' },
                   { icon: Calendar, label: 'Timetable', path: '/admin/timetable' },

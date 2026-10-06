@@ -68,6 +68,84 @@ export type Database = {
         }
         Relationships: []
       }
+      drive_courses: {
+        Row: {
+          id: string
+          title: string
+          description: string | null
+          drive_id: string
+          drive_url: string
+          thumbnail_url: string | null
+          department_id: string | null
+          department: string | null
+          branch_id: string | null
+          branch: string | null
+          academic_year_id: string | null
+          academic_year: string | null
+          year_of_study: string | null
+          semester: string | null
+          section_id: string | null
+          section: string | null
+          subject_id: string | null
+          subject_name: string | null
+          status: string
+          created_by: string | null
+          created_at: string
+          updated_at: string
+          [key: string]: unknown
+        }
+        Insert: {
+          id?: string
+          title: string
+          description?: string | null
+          drive_id: string
+          drive_url: string
+          thumbnail_url?: string | null
+          department_id?: string | null
+          department?: string | null
+          branch_id?: string | null
+          branch?: string | null
+          academic_year_id?: string | null
+          academic_year?: string | null
+          year_of_study?: string | null
+          semester?: string | null
+          section_id?: string | null
+          section?: string | null
+          subject_id?: string | null
+          subject_name?: string | null
+          status?: string
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+          [key: string]: unknown
+        }
+        Update: {
+          id?: string
+          title?: string
+          description?: string | null
+          drive_id?: string
+          drive_url?: string
+          thumbnail_url?: string | null
+          department_id?: string | null
+          department?: string | null
+          branch_id?: string | null
+          branch?: string | null
+          academic_year_id?: string | null
+          academic_year?: string | null
+          year_of_study?: string | null
+          semester?: string | null
+          section_id?: string | null
+          section?: string | null
+          subject_id?: string | null
+          subject_name?: string | null
+          status?: string
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+          [key: string]: unknown
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -79,7 +157,6 @@ export type Database = {
           user_id: string
           email?: string | null
           branch?: string | null
-          sub_branch?: string | null
           academic_year?: string | null
           year_of_study?: string | null
           section?: string | null
@@ -88,7 +165,6 @@ export type Database = {
           role?: Database["public"]["Enums"]["app_role"] | string | null
           department_id?: string | null
           branch_id?: string | null
-          sub_branch_id?: string | null
           class_id?: string | null
           section_id?: string | null
           academic_year_id?: string | null
@@ -111,7 +187,6 @@ export type Database = {
           user_id: string
           email?: string | null
           branch?: string | null
-          sub_branch?: string | null
           academic_year?: string | null
           year_of_study?: string | null
           section?: string | null
@@ -120,7 +195,6 @@ export type Database = {
           role?: Database["public"]["Enums"]["app_role"] | string | null
           department_id?: string | null
           branch_id?: string | null
-          sub_branch_id?: string | null
           class_id?: string | null
           section_id?: string | null
           academic_year_id?: string | null
@@ -143,7 +217,6 @@ export type Database = {
           user_id?: string
           email?: string | null
           branch?: string | null
-          sub_branch?: string | null
           academic_year?: string | null
           year_of_study?: string | null
           section?: string | null
@@ -152,7 +225,6 @@ export type Database = {
           role?: Database["public"]["Enums"]["app_role"] | string | null
           department_id?: string | null
           branch_id?: string | null
-          sub_branch_id?: string | null
           class_id?: string | null
           section_id?: string | null
           academic_year_id?: string | null

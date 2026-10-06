@@ -15,6 +15,7 @@ import {
   Key,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAcademicHierarchy } from '@/hooks/useAcademicHierarchy';
 import { PageHeader } from '@/components/common/PageHeader';
 import { UserAvatar } from '@/components/common/UserAvatar';
 import { Button } from '@/components/ui/button';
@@ -30,6 +31,7 @@ export default function Profile() {
   const navigate = useNavigate();
   const { profile, updateProfile } = useAuth();
   const { toast } = useToast();
+  const hierarchy = useAcademicHierarchy();
 
   const [editOpen, setEditOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -153,10 +155,6 @@ export default function Profile() {
               <span className="font-semibold text-foreground">{profile?.branch || 'CSE'}</span>
             </div>
             <div className="flex justify-between py-1.5 border-b border-border/40">
-              <span className="text-muted-foreground">Sub-Branch / Specialization:</span>
-              <span className="font-semibold text-primary">{profile?.sub_branch || 'Cyber Security'}</span>
-            </div>
-            <div className="flex justify-between py-1.5 border-b border-border/40">
               <span className="text-muted-foreground">Academic Year:</span>
               <span className="font-semibold text-foreground">{profile?.academic_year || '2026–27'}</span>
             </div>
@@ -261,12 +259,12 @@ export default function Profile() {
                     onChange={(e) => setFormData({ ...formData, branch: e.target.value })}
                     className="w-full px-3 py-2 text-xs rounded-xl border border-border bg-background"
                   >
-                    <option value="CSE">CSE</option>
-                    <option value="IT">IT</option>
-                    <option value="ECE">ECE</option>
-                    <option value="EEE">EEE</option>
-                    <option value="MECH">MECH</option>
-                    <option value="CIVIL">CIVIL</option>
+                    {hierarchy.activeBranches.map((b) => (
+                      <option key={b.id} value={b.code || b.name}>{b.name} ({b.code})</option>
+                    ))}
+                    {hierarchy.activeBranches.length === 0 && (
+                      <option value={formData.branch}>{formData.branch}</option>
+                    )}
                   </select>
                 </div>
 
@@ -277,9 +275,12 @@ export default function Profile() {
                     onChange={(e) => setFormData({ ...formData, section: e.target.value })}
                     className="w-full px-3 py-2 text-xs rounded-xl border border-border bg-background"
                   >
-                    <option value="A">Section A</option>
-                    <option value="B">Section B</option>
-                    <option value="C">Section C</option>
+                    {hierarchy.activeSections.map((sec) => (
+                      <option key={sec.id} value={sec.code}>Section {sec.code}</option>
+                    ))}
+                    {hierarchy.activeSections.length === 0 && (
+                      <option value={formData.section}>Section {formData.section}</option>
+                    )}
                   </select>
                 </div>
               </div>
@@ -291,12 +292,12 @@ export default function Profile() {
                   onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
                   className="w-full px-3 py-2 text-xs rounded-xl border border-border bg-background"
                 >
-                  <option value="Semester 1">Semester 1</option>
-                  <option value="Semester 2">Semester 2</option>
-                  <option value="Semester 3">Semester 3</option>
-                  <option value="Semester 4">Semester 4</option>
-                  <option value="Semester 5">Semester 5</option>
-                  <option value="Semester 6">Semester 6</option>
+                  {hierarchy.getSemestersForBranch(formData.branch).map((sem) => (
+                    <option key={sem} value={sem}>{sem}</option>
+                  ))}
+                  {hierarchy.getSemestersForBranch(formData.branch).length === 0 && (
+                    <option value={formData.semester}>{formData.semester}</option>
+                  )}
                 </select>
               </div>
 

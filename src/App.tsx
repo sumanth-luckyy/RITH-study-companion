@@ -3,7 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 
@@ -28,6 +28,7 @@ import AdminPanel from "@/pages/AdminPanel";
 import AboutUs from "@/pages/AboutUs";
 import RateUs from "@/pages/RateUs";
 import ReportProblem from "@/pages/ReportProblem";
+import DriveCourses from "@/pages/DriveCourses";
 import NotFound from "@/pages/NotFound";
 
 import { useCapacitorBackButton } from "@/hooks/useCapacitorBackButton";
@@ -87,6 +88,7 @@ const App = () => (
                 <Route path="/assignments" element={<Assignments />} />
                 <Route path="/timetable" element={<Timetable />} />
                 <Route path="/resources" element={<Resources />} />
+                <Route path="/courses" element={<DriveCourses />} />
                 <Route path="/previous-papers" element={<PreviousPapers />} />
                 <Route path="/announcements" element={<Announcements />} />
                 <Route path="/classmates" element={<Classmates />} />

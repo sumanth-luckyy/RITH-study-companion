@@ -3,7 +3,6 @@ import {
   RollNumberFormatConfig,
   ParsedRollNumber,
   Branch,
-  SubBranch
 } from '../types/academic';
 
 /**
@@ -47,36 +46,36 @@ export const DEFAULT_BRANCH_CODE_MAPPINGS: BranchCodeMapping[] = [
   {
     id: 'map-1a',
     code: '1A',
-    name: 'Computer Science & Engineering (Cyber Security)',
-    description: 'Institutional code for CSE - Cyber Security specialization',
+    name: 'Cyber Security',
+    description: 'Institutional code for Cyber Security branch',
     is_active: true,
   },
   {
     id: 'map-05',
     code: '05',
-    name: 'Computer Science & Engineering (Core)',
-    description: 'Institutional code for CSE Core',
+    name: 'Computer Science & Engineering',
+    description: 'Institutional code for CSE',
     is_active: true,
   },
   {
     id: 'map-42',
     code: '42',
-    name: 'Computer Science & Engineering (AI & ML)',
-    description: 'Institutional code for CSE - AI & ML specialization',
+    name: 'Artificial Intelligence & Machine Learning',
+    description: 'Institutional code for AI & ML branch',
     is_active: true,
   },
   {
     id: 'map-44',
     code: '44',
-    name: 'Computer Science & Engineering (Data Science)',
-    description: 'Institutional code for CSE - Data Science specialization',
+    name: 'Data Science',
+    description: 'Institutional code for Data Science branch',
     is_active: true,
   },
   {
     id: 'map-04',
     code: '04',
     name: 'Electronics & Communication Engineering',
-    description: 'Institutional code for ECE Core',
+    description: 'Institutional code for ECE',
     is_active: true,
   },
   {
@@ -97,13 +96,13 @@ export const DEFAULT_BRANCH_CODE_MAPPINGS: BranchCodeMapping[] = [
 
 /**
  * Parses and validates a student roll number against configurable format rules and branch codes.
+ * Hierarchy: Department -> Branch -> Academic Year -> Year -> Semester -> Section -> Student
  */
 export function parseRollNumber(
   rawRoll: string,
   formats: RollNumberFormatConfig[] = DEFAULT_ROLL_FORMATS,
   branchCodeMappings: BranchCodeMapping[] = DEFAULT_BRANCH_CODE_MAPPINGS,
-  branches: Branch[] = [],
-  subBranches: SubBranch[] = []
+  branches: Branch[] = []
 ): ParsedRollNumber {
   const cleanRoll = rawRoll.trim().toUpperCase();
 
@@ -128,7 +127,7 @@ export function parseRollNumber(
       if (match) {
         // Extract Year
         let joiningYear: number | undefined;
-        if (fmt.year_group_index > 0 && match[fmt.year_group_index]) {
+        if (fmt.year_group_index && fmt.year_group_index > 0 && match[fmt.year_group_index]) {
           const rawYear = parseInt(match[fmt.year_group_index], 10);
           if (!isNaN(rawYear)) {
             joiningYear = rawYear < 100 ? (fmt.century_prefix || 2000) + rawYear : rawYear;
@@ -137,23 +136,23 @@ export function parseRollNumber(
 
         // Extract College Code
         let collegeCode: string | undefined;
-        if (fmt.college_group_index > 0 && match[fmt.college_group_index]) {
+        if (fmt.college_group_index && fmt.college_group_index > 0 && match[fmt.college_group_index]) {
           collegeCode = match[fmt.college_group_index].toUpperCase();
         }
 
         // Extract Branch Code
         let branchCode: string | undefined;
-        if (fmt.branch_code_group_index > 0 && match[fmt.branch_code_group_index]) {
+        if (fmt.branch_code_group_index && fmt.branch_code_group_index > 0 && match[fmt.branch_code_group_index]) {
           branchCode = match[fmt.branch_code_group_index].toUpperCase();
         }
 
         // Extract Roll Number
         let numericRoll: string | undefined;
-        if (fmt.roll_group_index > 0 && match[fmt.roll_group_index]) {
+        if (fmt.roll_group_index && fmt.roll_group_index > 0 && match[fmt.roll_group_index]) {
           numericRoll = match[fmt.roll_group_index];
         }
 
-        // Resolve branch & sub-branch from mappings
+        // Resolve branch from mappings
         const mappings = branchCodeMappings.length > 0 ? branchCodeMappings : DEFAULT_BRANCH_CODE_MAPPINGS;
         const mappedCode = mappings.find(
           m => m.is_active && m.code.toUpperCase() === branchCode
@@ -161,10 +160,8 @@ export function parseRollNumber(
 
         let mappedBranchId: string | undefined = mappedCode?.branch_id ?? undefined;
         let mappedBranchName: string | undefined = mappedCode?.name;
-        let mappedSubBranchId: string | undefined = mappedCode?.sub_branch_id ?? undefined;
-        let mappedSubBranchName: string | undefined;
 
-        // Cross-reference with database branches & sub-branches if IDs or names exist
+        // Cross-reference with database branches if IDs or names exist
         if (mappedBranchId && branches.length > 0) {
           const b = branches.find(item => item.id === mappedBranchId);
           if (b) mappedBranchName = b.name;
@@ -176,28 +173,6 @@ export function parseRollNumber(
           if (b) mappedBranchId = b.id;
         }
 
-        if (mappedSubBranchId && subBranches.length > 0) {
-          const sb = subBranches.find(item => item.id === mappedSubBranchId);
-          if (sb) mappedSubBranchName = sb.name;
-        } else if (mappedBranchName && subBranches.length > 0) {
-          // Check if mapped name specifies a sub-branch, e.g. "Cyber Security"
-          const sb = subBranches.find(item =>
-            mappedBranchName!.toLowerCase().includes(item.name.toLowerCase())
-          );
-          if (sb) {
-            mappedSubBranchId = sb.id;
-            mappedSubBranchName = sb.name;
-          }
-        }
-
-        // Fallback sub-branch name inference
-        if (!mappedSubBranchName && mappedCode?.name) {
-          if (mappedCode.name.includes('Cyber Security')) mappedSubBranchName = 'Cyber Security';
-          else if (mappedCode.name.includes('AI & ML')) mappedSubBranchName = 'Artificial Intelligence & Machine Learning';
-          else if (mappedCode.name.includes('Data Science')) mappedSubBranchName = 'Data Science';
-          else if (mappedCode.name.includes('Core')) mappedSubBranchName = 'Core';
-        }
-
         return {
           raw: cleanRoll,
           isValid: true,
@@ -207,8 +182,7 @@ export function parseRollNumber(
           numericRoll,
           mappedBranchId,
           mappedBranchName: mappedBranchName || (branchCode ? `Branch (${branchCode})` : undefined),
-          mappedSubBranchId,
-          mappedSubBranchName: mappedSubBranchName || 'Core',
+          branchName: mappedBranchName,
           formatName: fmt.name,
         };
       }

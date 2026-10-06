@@ -21,6 +21,7 @@ import {
   LogOut,
   Activity,
   GraduationCap,
+  FolderGit2,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -49,6 +50,7 @@ export function MobileBottomNav() {
 
   const adminMoreItems = [
     { label: 'Users & Admins', path: '/admin/users', icon: Shield, color: 'text-purple-400' },
+    { label: 'Drive Courses', path: '/admin/courses', icon: FolderGit2, color: 'text-cyan-500' },
     { label: 'Hierarchy & Classes', path: '/admin/hierarchy', icon: Layers, color: 'text-primary' },
     { label: 'Subjects', path: '/admin/subjects', icon: BookOpen, color: 'text-indigo-500' },
     { label: 'Timetable', path: '/admin/timetable', icon: Calendar, color: 'text-emerald-500' },
@@ -68,6 +70,7 @@ export function MobileBottomNav() {
   ];
 
   const studentMoreItems = [
+    { label: 'Drive Courses', path: '/courses', icon: FolderGit2, color: 'text-cyan-500' },
     { label: 'Timetable', path: '/timetable', icon: Calendar, color: 'text-primary' },
     { label: 'Announcements', path: '/announcements', icon: Bell, color: 'text-amber-500' },
     { label: 'Previous Papers', path: '/previous-papers', icon: Archive, color: 'text-emerald-500' },

@@ -8,17 +8,13 @@ import {
   Plus,
   Trash2,
   Edit2,
-  Check,
-  X,
   RefreshCw,
   Hash,
-  Sparkles,
 } from 'lucide-react';
 import { academicService } from '@/services/academicService';
 import {
   Department,
   Branch,
-  SubBranch,
   AcademicYear,
   AcademicClass,
   Section,
@@ -36,7 +32,6 @@ import {
 type HierarchyTab =
   | 'departments'
   | 'branches'
-  | 'sub_branches'
   | 'academic_years'
   | 'classes'
   | 'sections'
@@ -50,7 +45,6 @@ export function AcademicHierarchyManager() {
   // Data states
   const [departments, setDepartments] = useState<Department[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
-  const [subBranches, setSubBranches] = useState<SubBranch[]>([]);
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
   const [classes, setClasses] = useState<AcademicClass[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
@@ -63,12 +57,10 @@ export function AcademicHierarchyManager() {
   // Forms
   const [deptForm, setDeptForm] = useState({ name: '', code: '', description: '', is_active: true });
   const [branchForm, setBranchForm] = useState({ department_id: '', name: '', code: '', description: '', is_active: true });
-  const [subBranchForm, setSubBranchForm] = useState({ branch_id: '', name: '', code: '', description: '', is_active: true });
   const [yearForm, setYearForm] = useState({ name: '', start_year: 2026, end_year: 2027, is_current: true, is_active: true });
   const [classForm, setClassForm] = useState({
     name: '',
     branch_id: '',
-    sub_branch_id: '',
     academic_year_id: '',
     year_of_study: '1st Year',
     semester: 'Semester 1',
@@ -80,7 +72,6 @@ export function AcademicHierarchyManager() {
     code: '',
     name: '',
     branch_id: '',
-    sub_branch_id: '',
     description: '',
     is_active: true,
   });
@@ -88,10 +79,9 @@ export function AcademicHierarchyManager() {
   const loadData = React.useCallback(async () => {
     setIsLoading(true);
     try {
-      const [deptList, brList, sbList, ayList, clList, secList, bcList] = await Promise.all([
+      const [deptList, brList, ayList, clList, secList, bcList] = await Promise.all([
         academicService.getDepartments(),
         academicService.getBranches(),
-        academicService.getSubBranches(),
         academicService.getAcademicYears(),
         academicService.getClasses(),
         academicService.getSections(),
@@ -100,7 +90,6 @@ export function AcademicHierarchyManager() {
 
       setDepartments(deptList);
       setBranches(brList);
-      setSubBranches(sbList);
       setAcademicYears(ayList);
       setClasses(clList);
       setSections(secList);
@@ -132,21 +121,12 @@ export function AcademicHierarchyManager() {
         description: '',
         is_active: true,
       });
-    } else if (activeTab === 'sub_branches') {
-      setSubBranchForm({
-        branch_id: branches[0]?.id || '',
-        name: '',
-        code: '',
-        description: '',
-        is_active: true,
-      });
     } else if (activeTab === 'academic_years') {
       setYearForm({ name: '2027–28', start_year: 2027, end_year: 2028, is_current: false, is_active: true });
     } else if (activeTab === 'classes') {
       setClassForm({
         name: '',
         branch_id: branches[0]?.id || '',
-        sub_branch_id: subBranches[0]?.id || '',
         academic_year_id: academicYears[0]?.id || '',
         year_of_study: '1st Year',
         semester: 'Semester 1',
@@ -166,7 +146,6 @@ export function AcademicHierarchyManager() {
         code: '',
         name: '',
         branch_id: branches[0]?.id || '',
-        sub_branch_id: subBranches[0]?.id || '',
         description: '',
         is_active: true,
       });
@@ -226,40 +205,10 @@ export function AcademicHierarchyManager() {
   };
 
   const handleDeleteBranch = async (id: string, name: string) => {
-    if (!window.confirm(`Delete branch "${name}" and related specializations?`)) return;
+    if (!window.confirm(`Delete branch "${name}"? Existing associated records will be preserved safely.`)) return;
     const ok = await academicService.deleteBranch(id);
     if (ok) {
       toast({ title: 'Branch Deleted' });
-      loadData();
-    }
-  };
-
-  const handleSaveSubBranch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!subBranchForm.name || !subBranchForm.code || !subBranchForm.branch_id) return;
-
-    if (editingItem) {
-      const ok = await academicService.updateSubBranch(editingItem.id as string, subBranchForm);
-      if (ok) {
-        toast({ title: 'Sub-Branch Updated' });
-        setModalOpen(false);
-        loadData();
-      }
-    } else {
-      const created = await academicService.createSubBranch(subBranchForm);
-      if (created) {
-        toast({ title: 'Sub-Branch Created', description: `${created.name} (${created.code})` });
-        setModalOpen(false);
-        loadData();
-      }
-    }
-  };
-
-  const handleDeleteSubBranch = async (id: string, name: string) => {
-    if (!window.confirm(`Delete sub-branch "${name}"?`)) return;
-    const ok = await academicService.deleteSubBranch(id);
-    if (ok) {
-      toast({ title: 'Sub-Branch Deleted' });
       loadData();
     }
   };
@@ -385,7 +334,7 @@ export function AcademicHierarchyManager() {
             <span>Academic Hierarchy & Structure</span>
           </h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Configure institutional levels: Department → Branch → Sub-Branch → Academic Year → Class → Section → Branch Codes
+            Configure institutional levels: Department → Branch → Academic Year → Year → Semester → Section → Student
           </p>
         </div>
 
@@ -421,16 +370,6 @@ export function AcademicHierarchyManager() {
         >
           <GitFork className="w-3.5 h-3.5" />
           <span>Branches ({branches.length})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('sub_branches')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all ${
-            activeTab === 'sub_branches' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Sparkles className="w-3.5 h-3.5" />
-          <span>Sub-Branches ({subBranches.length})</span>
         </button>
 
         <button
@@ -519,14 +458,12 @@ export function AcademicHierarchyManager() {
                               setModalOpen(true);
                             }}
                             className="p-1.5 text-muted-foreground hover:text-foreground rounded hover:bg-secondary"
-                            title="Edit Department"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => handleDeleteDepartment(dept.id, dept.name)}
                             className="p-1.5 text-destructive hover:text-destructive rounded hover:bg-destructive/10"
-                            title="Delete Department"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -585,62 +522,6 @@ export function AcademicHierarchyManager() {
                             </button>
                             <button
                               onClick={() => handleDeleteBranch(b.id, b.name)}
-                              className="p-1.5 text-destructive hover:text-destructive rounded hover:bg-destructive/10"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* SUB-BRANCHES TABLE */}
-          {activeTab === 'sub_branches' && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-secondary/60 text-muted-foreground border-b border-border">
-                  <tr>
-                    <th className="py-3 px-4 font-semibold">Specialization Code</th>
-                    <th className="py-3 px-4 font-semibold">Sub-Branch / Specialization</th>
-                    <th className="py-3 px-4 font-semibold">Parent Branch</th>
-                    <th className="py-3 px-4 font-semibold">Description</th>
-                    <th className="py-3 px-4 font-semibold text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/40">
-                  {subBranches.map((sb) => {
-                    const parentBranch = branches.find((b) => b.id === sb.branch_id);
-                    return (
-                      <tr key={sb.id} className="hover:bg-secondary/20">
-                        <td className="py-3 px-4 font-mono font-bold text-primary">{sb.code}</td>
-                        <td className="py-3 px-4 font-semibold text-foreground">{sb.name}</td>
-                        <td className="py-3 px-4 text-muted-foreground font-medium">{parentBranch ? parentBranch.name : 'CSE'}</td>
-                        <td className="py-3 px-4 text-muted-foreground">{sb.description || '—'}</td>
-                        <td className="py-3 px-4 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <button
-                              onClick={() => {
-                                setEditingItem(sb as unknown as Record<string, unknown>);
-                                setSubBranchForm({
-                                  branch_id: sb.branch_id,
-                                  name: sb.name,
-                                  code: sb.code,
-                                  description: sb.description || '',
-                                  is_active: sb.is_active,
-                                });
-                                setModalOpen(true);
-                              }}
-                              className="p-1.5 text-muted-foreground hover:text-foreground rounded hover:bg-secondary"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteSubBranch(sb.id, sb.name)}
                               className="p-1.5 text-destructive hover:text-destructive rounded hover:bg-destructive/10"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -716,7 +597,6 @@ export function AcademicHierarchyManager() {
                   <tr>
                     <th className="py-3 px-4 font-semibold">Class Name</th>
                     <th className="py-3 px-4 font-semibold">Branch</th>
-                    <th className="py-3 px-4 font-semibold">Sub-Branch</th>
                     <th className="py-3 px-4 font-semibold">Year & Semester</th>
                     <th className="py-3 px-4 font-semibold text-right">Actions</th>
                   </tr>
@@ -724,12 +604,10 @@ export function AcademicHierarchyManager() {
                 <tbody className="divide-y divide-border/40">
                   {classes.map((cls) => {
                     const br = branches.find((b) => b.id === cls.branch_id);
-                    const sb = subBranches.find((s) => s.id === cls.sub_branch_id);
                     return (
                       <tr key={cls.id} className="hover:bg-secondary/20">
                         <td className="py-3 px-4 font-semibold text-foreground">{cls.name}</td>
                         <td className="py-3 px-4 text-muted-foreground">{br ? br.name : 'CSE'}</td>
-                        <td className="py-3 px-4 text-primary font-medium">{sb ? sb.name : 'Core'}</td>
                         <td className="py-3 px-4 text-muted-foreground">{cls.year_of_study} • {cls.semester}</td>
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-1">
@@ -739,7 +617,6 @@ export function AcademicHierarchyManager() {
                                 setClassForm({
                                   name: cls.name,
                                   branch_id: cls.branch_id,
-                                  sub_branch_id: cls.sub_branch_id || '',
                                   academic_year_id: cls.academic_year_id || '',
                                   year_of_study: cls.year_of_study,
                                   semester: cls.semester,
@@ -831,22 +708,19 @@ export function AcademicHierarchyManager() {
                 <thead className="bg-secondary/60 text-muted-foreground border-b border-border">
                   <tr>
                     <th className="py-3 px-4 font-semibold">Roll Branch Code</th>
-                    <th className="py-3 px-4 font-semibold">Mapped Program Name</th>
-                    <th className="py-3 px-4 font-semibold">Branch</th>
-                    <th className="py-3 px-4 font-semibold">Sub-Branch</th>
+                    <th className="py-3 px-4 font-semibold">Mapped Branch / Program Name</th>
+                    <th className="py-3 px-4 font-semibold">Parent Branch</th>
                     <th className="py-3 px-4 font-semibold text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/40">
                   {branchCodes.map((bc) => {
                     const br = branches.find((b) => b.id === bc.branch_id);
-                    const sb = subBranches.find((s) => s.id === bc.sub_branch_id);
                     return (
                       <tr key={bc.id} className="hover:bg-secondary/20">
                         <td className="py-3 px-4 font-mono font-bold text-primary bg-primary/5">{bc.code}</td>
                         <td className="py-3 px-4 font-semibold text-foreground">{bc.name}</td>
                         <td className="py-3 px-4 text-muted-foreground">{br ? br.name : 'CSE'}</td>
-                        <td className="py-3 px-4 text-primary font-medium">{sb ? sb.name : 'Core'}</td>
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-1">
                             <button
@@ -856,7 +730,6 @@ export function AcademicHierarchyManager() {
                                   code: bc.code,
                                   name: bc.name,
                                   branch_id: bc.branch_id || '',
-                                  sub_branch_id: bc.sub_branch_id || '',
                                   description: bc.description || '',
                                   is_active: bc.is_active ?? true,
                                 });
@@ -979,50 +852,6 @@ export function AcademicHierarchyManager() {
               </form>
             )}
 
-            {/* Sub-Branch Form */}
-            {activeTab === 'sub_branches' && (
-              <form onSubmit={handleSaveSubBranch} className="space-y-4 py-2 text-xs">
-                <div>
-                  <label className="block text-muted-foreground mb-1">Parent Branch *</label>
-                  <select
-                    value={subBranchForm.branch_id}
-                    onChange={(e) => setSubBranchForm({ ...subBranchForm, branch_id: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-border bg-background"
-                  >
-                    {branches.map((b) => (
-                      <option key={b.id} value={b.id}>{b.name} ({b.code})</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-muted-foreground mb-1">Sub-Branch / Specialization *</label>
-                  <input
-                    type="text"
-                    required
-                    value={subBranchForm.name}
-                    onChange={(e) => setSubBranchForm({ ...subBranchForm, name: e.target.value })}
-                    placeholder="e.g. Cyber Security"
-                    className="w-full px-3 py-2 rounded-xl border border-border bg-background"
-                  />
-                </div>
-                <div>
-                  <label className="block text-muted-foreground mb-1">Specialization Code *</label>
-                  <input
-                    type="text"
-                    required
-                    value={subBranchForm.code}
-                    onChange={(e) => setSubBranchForm({ ...subBranchForm, code: e.target.value.toUpperCase() })}
-                    placeholder="e.g. CS"
-                    className="w-full px-3 py-2 rounded-xl border border-border bg-background font-mono"
-                  />
-                </div>
-                <div className="flex justify-end gap-2 pt-2">
-                  <Button type="button" variant="outline" size="sm" onClick={() => setModalOpen(false)}>Cancel</Button>
-                  <Button type="submit" size="sm" className="bg-primary">Save Sub-Branch</Button>
-                </div>
-              </form>
-            )}
-
             {/* Academic Year Form */}
             {activeTab === 'academic_years' && (
               <form onSubmit={handleSaveAcademicYear} className="space-y-4 py-2 text-xs">
@@ -1086,36 +915,21 @@ export function AcademicHierarchyManager() {
                     required
                     value={classForm.name}
                     onChange={(e) => setClassForm({ ...classForm, name: e.target.value })}
-                    placeholder="e.g. B.Tech CSE - Cyber Security (2026-27)"
+                    placeholder="e.g. B.Tech CSE - 2026-27"
                     className="w-full px-3 py-2 rounded-xl border border-border bg-background"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-muted-foreground mb-1">Branch *</label>
-                    <select
-                      value={classForm.branch_id}
-                      onChange={(e) => setClassForm({ ...classForm, branch_id: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-border bg-background"
-                    >
-                      {branches.map((b) => (
-                        <option key={b.id} value={b.id}>{b.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-muted-foreground mb-1">Sub-Branch</label>
-                    <select
-                      value={classForm.sub_branch_id}
-                      onChange={(e) => setClassForm({ ...classForm, sub_branch_id: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-border bg-background"
-                    >
-                      <option value="">None / Core</option>
-                      {subBranches.map((s) => (
-                        <option key={s.id} value={s.id}>{s.name}</option>
-                      ))}
-                    </select>
-                  </div>
+                <div>
+                  <label className="block text-muted-foreground mb-1">Branch *</label>
+                  <select
+                    value={classForm.branch_id}
+                    onChange={(e) => setClassForm({ ...classForm, branch_id: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-border bg-background"
+                  >
+                    {branches.map((b) => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -1229,43 +1043,28 @@ export function AcademicHierarchyManager() {
                   </p>
                 </div>
                 <div>
-                  <label className="block text-muted-foreground mb-1">Program / Specialization Name *</label>
+                  <label className="block text-muted-foreground mb-1">Program / Branch Name *</label>
                   <input
                     type="text"
                     required
                     value={branchCodeForm.name}
                     onChange={(e) => setBranchCodeForm({ ...branchCodeForm, name: e.target.value })}
-                    placeholder="e.g. Computer Science & Engineering (Cyber Security)"
+                    placeholder="e.g. Computer Science & Engineering"
                     className="w-full px-3 py-2 rounded-xl border border-border bg-background"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-muted-foreground mb-1">Mapped Branch</label>
-                    <select
-                      value={branchCodeForm.branch_id}
-                      onChange={(e) => setBranchCodeForm({ ...branchCodeForm, branch_id: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-border bg-background"
-                    >
-                      <option value="">Auto / Default</option>
-                      {branches.map((b) => (
-                        <option key={b.id} value={b.id}>{b.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-muted-foreground mb-1">Mapped Sub-Branch</label>
-                    <select
-                      value={branchCodeForm.sub_branch_id}
-                      onChange={(e) => setBranchCodeForm({ ...branchCodeForm, sub_branch_id: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-border bg-background"
-                    >
-                      <option value="">Core</option>
-                      {subBranches.map((s) => (
-                        <option key={s.id} value={s.id}>{s.name}</option>
-                      ))}
-                    </select>
-                  </div>
+                <div>
+                  <label className="block text-muted-foreground mb-1">Mapped Branch</label>
+                  <select
+                    value={branchCodeForm.branch_id}
+                    onChange={(e) => setBranchCodeForm({ ...branchCodeForm, branch_id: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-border bg-background"
+                  >
+                    <option value="">Auto / Default</option>
+                    {branches.map((b) => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
                 </div>
                 <div className="flex justify-end gap-2 pt-2">
                   <Button type="button" variant="outline" size="sm" onClick={() => setModalOpen(false)}>Cancel</Button>

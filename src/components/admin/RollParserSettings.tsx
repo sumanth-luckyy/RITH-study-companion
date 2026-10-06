@@ -285,15 +285,6 @@ export function RollParserSettings() {
                     {testResult.mappedBranchName || 'CSE'}
                   </span>
                 </div>
-
-                <div className="p-3 bg-background rounded-xl border border-border/60">
-                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider block font-semibold">
-                    Sub-Branch
-                  </span>
-                  <span className="text-xs font-bold text-primary mt-0.5 block truncate" title={testResult.mappedSubBranchName}>
-                    {testResult.mappedSubBranchName || 'Cyber Security'}
-                  </span>
-                </div>
               </div>
             ) : (
               <div className="p-3 bg-destructive/10 rounded-xl border border-destructive/20 text-xs text-destructive">

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   BookOpen,
@@ -14,6 +14,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { academicService } from '@/services/academicService';
 import { Subject } from '@/types/academic';
+import { useAcademicHierarchy } from '@/hooks/useAcademicHierarchy';
 import { PageHeader } from '@/components/common/PageHeader';
 import { CardSkeleton } from '@/components/common/LoadingSkeleton';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -22,6 +23,7 @@ import { ErrorState } from '@/components/common/ErrorState';
 export default function Subjects() {
   const { profile } = useAuth();
   const navigate = useNavigate();
+  const hierarchy = useAcademicHierarchy();
 
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -29,7 +31,9 @@ export default function Subjects() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSemester, setSelectedSemester] = useState('All');
 
-  const semesters = ['All', 'Semester 1', 'Semester 2', 'Semester 3', 'Semester 4'];
+  const semesters = useMemo(() => {
+    return ['All', ...hierarchy.getSemestersForBranch(profile?.branch)];
+  }, [hierarchy, profile?.branch]);
 
   const fetchSubjects = useCallback(async () => {
     setIsLoading(true);

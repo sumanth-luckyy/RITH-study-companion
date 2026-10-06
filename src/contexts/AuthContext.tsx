@@ -6,6 +6,7 @@ import {
   signOut as firebaseSignOut,
   onAuthStateChanged,
   updatePassword as firebaseUpdatePassword,
+  updateProfile as firebaseUpdateProfile,
   sendPasswordResetEmail,
 } from 'firebase/auth';
 import {
@@ -20,6 +21,31 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { UserProfile, UserRole, UserStatus, deriveClassGroup } from '@/types/academic';
 import { parseRollNumber } from '@/lib/rollNumberParser';
+
+const STUDENT_REGISTRY_KEY = 'study_companion_student_registry';
+
+export function getStudentRegistry(): Record<string, string> {
+  try {
+    const raw = typeof window !== 'undefined' ? localStorage.getItem(STUDENT_REGISTRY_KEY) : null;
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function saveStudentToRegistry(rollNumber: string, email: string): void {
+  try {
+    if (typeof window === 'undefined') return;
+    const cleanRoll = rollNumber.trim().toUpperCase();
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanRoll || !cleanEmail) return;
+    const registry = getStudentRegistry();
+    registry[cleanRoll] = cleanEmail;
+    localStorage.setItem(STUDENT_REGISTRY_KEY, JSON.stringify(registry));
+  } catch (e) {
+    console.warn('Could not save to student registry:', e);
+  }
+}
 
 interface AuthContextType {
   user: { id: string; email?: string } | null;
@@ -80,28 +106,31 @@ export function mapFirebaseAuthError(err: unknown, mode: 'signup' | 'signin' = '
     return 'Email/password authentication is currently disabled. Enable it in Firebase Authentication.';
   }
   if (code === 'auth/weak-password' || message.includes('weak-password')) {
-    return 'The account credential could not be created.';
+    return 'The password is too weak. Please use at least 6 characters.';
   }
   if (code === 'auth/network-request-failed' || message.includes('network-request-failed')) {
-    return 'Network error. Please check your connection and try again.';
+    return 'Network connection error. Please check your internet connection and try again.';
   }
-  if (
-    code === 'auth/user-not-found' ||
-    code === 'auth/invalid-credential' ||
-    code === 'auth/wrong-password' ||
-    message.includes('user-not-found') ||
-    message.includes('wrong-password') ||
-    message.includes('invalid-credential')
-  ) {
-    return mode === 'signin' ? 'Student account not found.' : 'Unable to create your account. Please try again.';
+  if (code === 'auth/wrong-password' || message.includes('wrong-password')) {
+    return 'Incorrect password. Student default password is your roll number.';
+  }
+  if (code === 'auth/user-not-found' || message.includes('user-not-found')) {
+    return mode === 'signin'
+      ? 'No student account found with these credentials.'
+      : 'Unable to create your account. Please try again.';
+  }
+  if (code === 'auth/invalid-credential' || message.includes('invalid-credential')) {
+    return mode === 'signin'
+      ? 'Incorrect credentials. Please verify your roll number or enter your password.'
+      : 'Unable to create your account. Please try again.';
   }
   if (code === 'auth/too-many-requests' || message.includes('too-many-requests')) {
-    return 'Too many attempts. Please try again in a few minutes.';
+    return 'Too many failed login attempts. Please try again in a few minutes.';
   }
 
-  return mode === 'signup'
+  return (err as Error)?.message || (mode === 'signup'
     ? 'Unable to create your account. Please try again.'
-    : 'Unable to sign in. Please try again.';
+    : 'Unable to sign in. Please try again.');
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -122,22 +151,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const email = (p.email as string) || emailFallback || '';
           const role = isSystemAdminEmail(email) ? 'admin' : ((p.role as UserRole) || 'student');
           const status = (p.status as UserStatus) || (p.is_active === false ? 'inactive' : 'active');
+          const rollNumber = (p.roll_number as string) || (isSystemAdminEmail(email) ? 'ADMIN-01' : '');
+
+          if (rollNumber && rollNumber !== 'N/A' && email) {
+            saveStudentToRegistry(rollNumber, email);
+          }
+
           return {
             id: userId,
             user_id: userId,
             email,
-            roll_number: (p.roll_number as string) || (isSystemAdminEmail(email) ? 'ADMIN-01' : 'N/A'),
+            roll_number: rollNumber || 'N/A',
             full_name: (p.full_name as string) || (isSystemAdminEmail(email) ? 'Sumanth (Admin)' : 'Student'),
             department: (p.department as string) || 'Computer Science & Engineering',
             branch: (p.branch as string) || 'CSE',
-            sub_branch: (p.sub_branch as string) || undefined,
             academic_year: (p.academic_year as string) || '2025-2026',
             year_of_study: (p.year_of_study as string) || '1st Year',
             section: (p.section as string) || 'A',
             semester: (p.semester as string) || 'Semester 1',
             class_group:
               (p.class_group as string) ||
-              deriveClassGroup((p.roll_number as string) || '', (p.branch as string) || 'CSE', (p.section as string) || 'A'),
+              deriveClassGroup(rollNumber || '', (p.branch as string) || 'CSE', (p.section as string) || 'A'),
             role,
             avatar_url: p.avatar_url as string | undefined,
             is_active: status === 'active',
@@ -166,22 +200,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const email = (p.email as string) || emailFallback || '';
           const role = isSystemAdminEmail(email) ? 'admin' : ((p.role as UserRole) || 'student');
           const status = (p.status as UserStatus) || (p.is_active === false ? 'inactive' : 'active');
+          const rollNumber = (p.roll_number as string) || (isSystemAdminEmail(email) ? 'ADMIN-01' : '');
+
+          if (rollNumber && rollNumber !== 'N/A' && email) {
+            saveStudentToRegistry(rollNumber, email);
+          }
+
           return {
             id: (p.id as string) || userId,
             user_id: userId,
             email,
-            roll_number: (p.roll_number as string) || (isSystemAdminEmail(email) ? 'ADMIN-01' : 'N/A'),
+            roll_number: rollNumber || 'N/A',
             full_name: (p.full_name as string) || (isSystemAdminEmail(email) ? 'Sumanth (Admin)' : 'Student'),
             department: (p.department as string) || 'Computer Science & Engineering',
             branch: (p.branch as string) || 'CSE',
-            sub_branch: (p.sub_branch as string) || undefined,
             academic_year: (p.academic_year as string) || '2025-2026',
             year_of_study: (p.year_of_study as string) || '1st Year',
             section: (p.section as string) || 'A',
             semester: (p.semester as string) || 'Semester 1',
             class_group:
               (p.class_group as string) ||
-              deriveClassGroup((p.roll_number as string) || '', (p.branch as string) || 'CSE', (p.section as string) || 'A'),
+              deriveClassGroup(rollNumber || '', (p.branch as string) || 'CSE', (p.section as string) || 'A'),
             role,
             avatar_url: p.avatar_url as string | undefined,
             is_active: status === 'active',
@@ -207,17 +246,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       userId: string,
       email: string,
       metadata?: Record<string, unknown>
-    ): Promise<UserProfile> => {
+    ): Promise<UserProfile | null> => {
       const isSuperAdmin = isSystemAdminEmail(email);
-      const fullName = (metadata?.full_name as string) || (isSuperAdmin ? 'Sumanth' : email.split('@')[0] || 'Student');
-      const rollNumber =
-        (metadata?.roll_number as string) || (isSuperAdmin ? 'ADMIN-01' : `25CS${userId.slice(0, 3).toUpperCase()}`);
-      const branch = (metadata?.branch as string) || 'CSE';
+      const rawRoll = (metadata?.roll_number as string)?.trim().toUpperCase();
+
+      // Only create profile if trusted roll number is provided or if super admin.
+      // Do not create arbitrary profiles with fake roll numbers for unknown users.
+      if (!isSuperAdmin && !rawRoll) {
+        return null;
+      }
+
+      const rollNumber = rawRoll || (isSuperAdmin ? 'ADMIN-01' : '');
+      const parsed = rollNumber ? parseRollNumber(rollNumber) : null;
+      const fullName = (metadata?.full_name as string) || (isSuperAdmin ? 'Sumanth (Admin)' : email.split('@')[0] || 'Student');
+      const branch = (metadata?.branch as string) || parsed?.mappedBranchName || parsed?.branchName || 'CSE';
       const section = (metadata?.section as string) || 'A';
       const semester = (metadata?.semester as string) || 'Semester 1';
-      const academicYear = (metadata?.academic_year as string) || '2025-2026';
+      const joiningYear = parsed?.joiningYear || (metadata?.joining_year as number) || 2025;
+      const academicYear =
+        (metadata?.academic_year as string) ||
+        (joiningYear ? `${joiningYear}–${joiningYear + 1}` : '2025–2026');
       const department =
         (metadata?.department as string) || (isSuperAdmin ? 'Administration' : `${branch} Department`);
+      const collegeCode = parsed?.collegeCode || (metadata?.college_code as string) || 'ME';
+      const branchCode = parsed?.branchCode || (metadata?.branch_code as string) || '1A';
+      const numericRoll = parsed?.numericRoll || (metadata?.numeric_roll as string) || rollNumber;
       const role: UserRole = isSuperAdmin ? 'admin' : 'student';
       const classGroup = deriveClassGroup(rollNumber, branch, section);
 
@@ -235,6 +288,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         semester,
         class_group: classGroup,
         role,
+        joining_year: joiningYear,
+        college_code: collegeCode,
+        branch_code: branchCode,
+        numeric_roll: numericRoll,
         is_active: true,
         status: 'active',
         created_at: new Date().toISOString(),
@@ -255,12 +312,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           section,
           semester,
           class_group: classGroup,
+          joining_year: joiningYear,
+          college_code: collegeCode,
+          branch_code: branchCode,
+          numeric_roll: numericRoll,
           is_active: true,
           status: 'active',
-          created_at: new Date().toISOString(),
+          created_at: newProfile.created_at,
         });
       } catch (e) {
         console.warn('Could not save profile to Firestore:', e);
+      }
+
+      if (rollNumber && email) {
+        saveStudentToRegistry(rollNumber, email);
       }
 
       // Sync to Supabase
@@ -299,10 +364,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!mounted) return;
 
       if (fbUser) {
-        let dbProfile = await fetchProfile(fbUser.uid, fbUser.email || undefined);
-        if (!dbProfile && fbUser.email) {
-          dbProfile = await createProfileIfMissing(fbUser.uid, fbUser.email);
-        }
+        const dbProfile = await fetchProfile(fbUser.uid, fbUser.email || undefined);
 
         if (dbProfile) {
           if (dbProfile.status === 'inactive' || dbProfile.status === 'suspended' || dbProfile.is_active === false) {
@@ -352,7 +414,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       mounted = false;
       unsubscribeFirebase();
     };
-  }, [fetchProfile, createProfileIfMissing]);
+  }, [fetchProfile]);
 
   const refreshProfile = useCallback(async () => {
     if (!user) return;
@@ -377,7 +439,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Validate format
     const parsed = parseRollNumber(cleanRoll);
     if (!parsed.isValid) {
-      return { error: new Error('Invalid roll number.') };
+      return { error: new Error(parsed.errorMessage || 'Invalid roll number format.') };
     }
 
     // Lookup student's registered email
@@ -395,7 +457,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         studentRole = (u.role as UserRole) || 'student';
         studentStatus = (u.status as UserStatus) || (u.is_active === false ? 'inactive' : 'active');
       }
-    } catch (e) {
+    } catch (e: unknown) {
+      const code = (e as { code?: string })?.code;
+      if (code === 'unavailable' || code === 'deadline-exceeded') {
+        return { error: new Error('Network error connecting to database. Please check your connection.') };
+      }
       console.warn('Firestore student lookup warning:', e);
     }
 
@@ -419,17 +485,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
+    // 3. Fallback to student registry cache
     if (!studentEmail) {
-      return { error: new Error('Student account not found.') };
+      try {
+        const registry = getStudentRegistry();
+        if (registry[cleanRoll]) {
+          studentEmail = registry[cleanRoll];
+        }
+      } catch {
+        // continue
+      }
+    }
+
+    if (!studentEmail) {
+      return { error: new Error('Roll number is not registered. Please create an account first.') };
     }
 
     if (studentRole === 'admin' || isSystemAdminEmail(studentEmail)) {
-      return { error: new Error('Student account not found.') };
+      return { error: new Error('Administrator accounts must sign in using the Admin Login portal.') };
     }
 
-    if (studentStatus === 'inactive' || studentStatus === 'suspended') {
+    if (studentStatus === 'inactive') {
       return {
-        error: new Error(`Your account is currently ${studentStatus}. Please contact your college administrator.`),
+        error: new Error('Your account is currently inactive. Please contact your college administrator.'),
+      };
+    }
+
+    if (studentStatus === 'suspended') {
+      return {
+        error: new Error('Your account is currently suspended. Please contact your college administrator.'),
       };
     }
 
@@ -446,14 +530,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const fbUser = userCredential.user;
       let p = await fetchProfile(fbUser.uid, fbUser.email || studentEmail);
+
+      // Safe profile recovery if missing
       if (!p) {
-        p = await createProfileIfMissing(fbUser.uid, studentEmail, { roll_number: cleanRoll });
+        p = await createProfileIfMissing(fbUser.uid, studentEmail, {
+          roll_number: cleanRoll,
+          full_name: fbUser.displayName || undefined,
+        });
       }
 
+      // Explicitly handle missing or incomplete roll_number in profile
       if (p) {
+        if (!p.roll_number || p.roll_number === 'N/A') {
+          p.roll_number = cleanRoll;
+          p.class_group = deriveClassGroup(cleanRoll, p.branch, p.section);
+          try {
+            await setDoc(
+              doc(db, 'users', fbUser.uid),
+              {
+                roll_number: cleanRoll,
+                class_group: p.class_group,
+              },
+              { merge: true }
+            );
+          } catch {
+            // continue
+          }
+        }
+
+        if (p.status === 'inactive' || p.status === 'suspended' || p.is_active === false) {
+          await firebaseSignOut(auth);
+          setUser(null);
+          setProfile(null);
+          return {
+            error: new Error(`Your account is currently ${p.status || 'inactive'}. Please contact your college administrator.`),
+          };
+        }
+
+        saveStudentToRegistry(cleanRoll, studentEmail);
         setUser({ id: fbUser.uid, email: fbUser.email || studentEmail });
         setProfile(p);
         return { error: null };
+      } else {
+        await firebaseSignOut(auth);
+        return { error: new Error('Student profile record could not be loaded. Please contact your administrator.') };
       }
     } catch (fbErr: unknown) {
       const code = (fbErr as { code?: string })?.code || '';
@@ -472,8 +592,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
 
         if (!supaErr && supaData.user) {
-          const p = await fetchProfile(supaData.user.id, supaData.user.email || studentEmail);
+          let p = await fetchProfile(supaData.user.id, supaData.user.email || studentEmail);
+          if (!p) {
+            p = await createProfileIfMissing(supaData.user.id, studentEmail, { roll_number: cleanRoll });
+          }
           if (p) {
+            if (p.status === 'inactive' || p.status === 'suspended' || p.is_active === false) {
+              await supabase.auth.signOut();
+              return {
+                error: new Error(`Your account is currently ${p.status || 'inactive'}. Please contact your college administrator.`),
+              };
+            }
+            saveStudentToRegistry(cleanRoll, studentEmail);
             setUser({ id: supaData.user.id, email: supaData.user.email || studentEmail });
             setProfile(p);
             return { error: null };
@@ -485,8 +615,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       return { error: new Error(mapFirebaseAuthError(fbErr, 'signin')) };
     }
-
-    return { error: new Error('Unable to sign in. Please try again.') };
   };
 
   /**
@@ -546,12 +674,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const fbUser = userCredential.user;
       const p = await fetchProfile(fbUser.uid, fbUser.email || emailToAuth);
 
+      if (p?.role === 'student' && !isSystemAdminEmail(fbUser.email)) {
+        await firebaseSignOut(auth);
+        setUser(null);
+        setProfile(null);
+        return { error: new Error('Students cannot sign in through the Admin Portal. Please use the Student Login.') };
+      }
+
+      if (p?.status === 'inactive' || p?.status === 'suspended' || p?.is_active === false) {
+        await firebaseSignOut(auth);
+        setUser(null);
+        setProfile(null);
+        return { error: new Error(`Your account is currently ${p?.status || 'inactive'}. Please contact your college administrator.`) };
+      }
+
       const isUserAdmin = p?.role === 'admin' || isSystemAdminEmail(fbUser.email) || isSystemAdminEmail(p?.email);
       if (!isUserAdmin) {
         await firebaseSignOut(auth);
         setUser(null);
         setProfile(null);
-        return { error: new Error('Invalid admin credentials.') };
+        return { error: new Error('Invalid admin credentials. This account does not have administrative privileges.') };
       }
 
       setUser({ id: fbUser.uid, email: fbUser.email || emailToAuth });
@@ -605,7 +747,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     rollNumber: string,
     email: string
   ): Promise<{ error: Error | null }> => {
-    // 1. Normalize inputs
+    // 1. Normalize inputs consistently
     const normalizedName = fullName.trim();
     if (!normalizedName) {
       return { error: new Error('Please enter your full name.') };
@@ -621,7 +763,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { error: new Error('Please enter a valid email address.') };
     }
 
-    // Block admin emails from public signup
+    // Never allow a public signup form to select or register admin accounts
     if (isSystemAdminEmail(normalizedEmail)) {
       return { error: new Error('This email is reserved for administrators.') };
     }
@@ -629,10 +771,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // 2. Format validation using academic parser
     const parsed = parseRollNumber(normalizedRoll);
     if (!parsed.isValid) {
-      return { error: new Error('Invalid roll number.') };
+      return { error: new Error(parsed.errorMessage || 'Invalid roll number format.') };
     }
 
     // 3. Roll number duplicate check
+    // Check Firestore
     try {
       const q = query(collection(db, 'users'), where('roll_number', '==', normalizedRoll));
       const snap = await getDocs(q);
@@ -643,6 +786,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.warn('Firestore roll check warning:', e);
     }
 
+    // Check registry cache
+    const registry = getStudentRegistry();
+    if (registry[normalizedRoll]) {
+      return { error: new Error('An account with this roll number already exists. Please sign in.') };
+    }
+
+    // Check Supabase
     try {
       const { data: existingRoll } = await supabase
         .from('profiles')
@@ -684,7 +834,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // 5. Academic derivation from parser
     const branch = parsed.mappedBranchName || parsed.branchName || 'CSE';
-    const subBranch = parsed.mappedSubBranchName || parsed.subBranchName || 'Core';
     const department =
       branch.includes('CSE') || branch.includes('Computer') ? 'Engineering & Technology' : `${branch} Department`;
     const joiningYear = parsed.joiningYear || 2025;
@@ -696,23 +845,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const academicYear = `${joiningYear}–${joiningYear + 1}`;
     const classGroup = deriveClassGroup(normalizedRoll, branch, section);
 
-    // Roll number is the default internal password
+    // Student default password is their roll number
     const internalInitialPassword = normalizedRoll;
 
     // 6. Create Firebase user
-    let firebaseUid = '';
+    let userCredential;
     try {
-      const userCredential = await createUserWithEmailAndPassword(
+      userCredential = await createUserWithEmailAndPassword(
         auth,
         normalizedEmail,
         internalInitialPassword
       );
-      firebaseUid = userCredential.user.uid;
     } catch (err: unknown) {
       return { error: new Error(mapFirebaseAuthError(err, 'signup')) };
     }
 
-    const userId = firebaseUid || `usr-${Date.now()}`;
+    const userId = userCredential.user.uid;
+    const createdAt = new Date().toISOString();
+
     const newProf: UserProfile = {
       id: userId,
       user_id: userId,
@@ -721,7 +871,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       full_name: normalizedName,
       department,
       branch,
-      sub_branch: subBranch,
       academic_year: academicYear,
       year_of_study: '1st Year',
       section,
@@ -734,7 +883,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       numeric_roll: numericRoll,
       is_active: true,
       status: 'active',
-      created_at: new Date().toISOString(),
+      created_at: createdAt,
     };
 
     // 7. Save to Firestore users/{uid}
@@ -747,7 +896,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         role: 'student',
         department,
         branch,
-        sub_branch: subBranch,
         academic_year: academicYear,
         year_of_study: '1st Year',
         section,
@@ -757,7 +905,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         college_code: collegeCode,
         branch_code: branchCode,
         numeric_roll: numericRoll,
-        created_at: new Date().toISOString(),
+        created_at: createdAt,
         is_active: true,
         status: 'active',
       });
@@ -765,7 +913,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.warn('Firestore setDoc warning:', e);
     }
 
-    // 8. Sync to Supabase profiles
+    // 8. Update Firebase Auth displayName
+    try {
+      await firebaseUpdateProfile(userCredential.user, {
+        displayName: normalizedName,
+      });
+    } catch {
+      // continue
+    }
+
+    // 9. Save roll number mapping to local student registry cache
+    saveStudentToRegistry(normalizedRoll, normalizedEmail);
+
+    // 10. Sync to Supabase profiles
     try {
       await supabase.from('profiles').upsert({
         user_id: userId,
@@ -774,7 +934,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         full_name: normalizedName,
         department,
         branch,
-        sub_branch: subBranch,
         academic_year: academicYear,
         year_of_study: '1st Year',
         section,
@@ -801,7 +960,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // continue
     }
 
-    // 9. Automatically authenticate the newly created student and set state
+    // 11. Set authenticated student in application state
     setUser({ id: userId, email: normalizedEmail });
     setProfile(newProf);
     return { error: null };
@@ -893,6 +1052,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (updates.roll_number || updates.branch || updates.section) {
       updated.class_group = deriveClassGroup(updated.roll_number, updated.branch, updated.section);
+    }
+
+    if (updated.roll_number && updated.email) {
+      saveStudentToRegistry(updated.roll_number, updated.email);
     }
 
     try {

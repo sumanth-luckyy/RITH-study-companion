@@ -17,6 +17,7 @@ import {
   User,
   Sparkles,
   ExternalLink,
+  FolderGit2,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { academicService } from '@/services/academicService';
@@ -74,15 +75,13 @@ export default function Home() {
       const academicFilters = {
         department_id: profile?.department_id || undefined,
         branch_id: profile?.branch_id || undefined,
-        sub_branch_id: profile?.sub_branch_id || undefined,
-        sub_branch: profile?.sub_branch || undefined,
         section_id: profile?.section_id || undefined,
         section: profile?.section || undefined,
       };
 
       const [todayData, subjData, asgData, annData, resData] = await Promise.all([
         academicService.getTodayTimetable(classGroup, academicFilters),
-        academicService.getSubjects(profile?.semester, profile?.branch, profile?.sub_branch),
+        academicService.getSubjects(profile?.semester, profile?.branch),
         academicService.getAssignments(classGroup, user?.id, academicFilters),
         academicService.getAnnouncements(classGroup, user?.id, academicFilters),
         academicService.getResources({ ...academicFilters, semester: profile?.semester }, user?.id),
@@ -162,6 +161,14 @@ export default function Home() {
       bg: 'bg-primary/10',
     },
     {
+      icon: FolderGit2,
+      label: 'Drive Courses',
+      desc: 'Curated Drive video courses',
+      path: '/courses',
+      color: 'text-cyan-500',
+      bg: 'bg-cyan-500/10',
+    },
+    {
       icon: CheckSquare,
       label: 'Assignments',
       desc: 'Active deadlines & tasks',
@@ -212,7 +219,6 @@ export default function Home() {
   const hierarchyDisplay = [
     profile?.department || 'Engineering',
     profile?.branch || 'CSE',
-    profile?.sub_branch && profile.sub_branch !== 'Core' ? profile.sub_branch : null,
     profile?.year_of_study || '1st Year',
     profile?.semester || 'Semester 1',
     `Section ${profile?.section || 'A'}`
@@ -333,7 +339,7 @@ export default function Home() {
       {/* ---------------- 3. QUICK ACTIONS ---------------- */}
       <section className="space-y-3">
         <h2 className="text-base sm:text-lg font-bold text-foreground">Quick Academic Actions</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {quickActions.map((action) => {
             const Icon = action.icon;
             return (

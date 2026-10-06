@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/dialog';
 
 import { useAuth } from '@/contexts/AuthContext';
+import { useAcademicHierarchy } from '@/hooks/useAcademicHierarchy';
 
 const CATEGORIES: ('All' | ResourceCategory)[] = [
   'All',
@@ -40,13 +41,16 @@ const CATEGORIES: ('All' | ResourceCategory)[] = [
   'Important Documents',
 ];
 
-const SEMESTERS = ['All', 'Semester 1', 'Semester 2', 'Semester 3', 'Semester 4'];
-
 export default function Resources() {
-  const { user } = useAuth();
+  const { profile, user } = useAuth();
+  const hierarchy = useAcademicHierarchy();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialSearch = searchParams.get('search') || '';
   const initialSubject = searchParams.get('subject') || 'All';
+
+  const semesters = useMemo(() => {
+    return ['All', ...hierarchy.getSemestersForBranch(profile?.branch)];
+  }, [hierarchy, profile?.branch]);
 
   const [resources, setResources] = useState<AcademicResource[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -159,7 +163,7 @@ export default function Resources() {
               onChange={(e) => setSelectedSemester(e.target.value)}
               className="px-2.5 py-1 text-xs rounded-xl border border-border bg-background text-foreground"
             >
-              {SEMESTERS.map((sem) => (
+              {semesters.map((sem) => (
                 <option key={sem} value={sem}>{sem}</option>
               ))}
             </select>

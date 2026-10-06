@@ -55,14 +55,15 @@ import {
   UserStatus,
   Department,
   Branch,
-  SubBranch,
 } from '@/types/academic';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAcademicHierarchy } from '@/hooks/useAcademicHierarchy';
 import { toast } from 'sonner';
 
 export function AdminUserManagement() {
   const { user: currentAuthUser } = useAuth();
   const currentAdminId = currentAuthUser?.id || '';
+  const hierarchy = useAcademicHierarchy();
 
   // Data State
   const [users, setUsers] = useState<AdminUserItem[]>([]);
@@ -71,11 +72,6 @@ export function AdminUserManagement() {
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Hierarchy Data for dropdowns
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [branches, setBranches] = useState<Branch[]>([]);
-  const [subBranches, setSubBranches] = useState<SubBranch[]>([]);
-
   // Filters State
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -83,7 +79,6 @@ export function AdminUserManagement() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [deptFilter, setDeptFilter] = useState<string>('all');
   const [branchFilter, setBranchFilter] = useState<string>('all');
-  const [subBranchFilter, setSubBranchFilter] = useState<string>('all');
   const [yearFilter, setYearFilter] = useState<string>('all');
   const [sectionFilter, setSectionFilter] = useState<string>('all');
 
@@ -102,7 +97,6 @@ export function AdminUserManagement() {
   const [formRollNumber, setFormRollNumber] = useState('');
   const [formDepartment, setFormDepartment] = useState('Engineering & Technology');
   const [formBranch, setFormBranch] = useState('CSE');
-  const [formSubBranch, setFormSubBranch] = useState('Cyber Security');
   const [formAcademicYear, setFormAcademicYear] = useState('2026–27');
   const [formYearOfStudy, setFormYearOfStudy] = useState('1st Year');
   const [formSemester, setFormSemester] = useState('Semester 1');
@@ -119,25 +113,6 @@ export function AdminUserManagement() {
     return () => clearTimeout(handler);
   }, [searchTerm]);
 
-  // Load hierarchy data once
-  useEffect(() => {
-    async function loadHierarchy() {
-      try {
-        const [depts, brs, subs] = await Promise.all([
-          academicService.getDepartments(),
-          academicService.getBranches(),
-          academicService.getSubBranches(),
-        ]);
-        setDepartments(depts);
-        setBranches(brs);
-        setSubBranches(subs);
-      } catch (err) {
-        console.error('Error loading academic hierarchy options:', err);
-      }
-    }
-    loadHierarchy();
-  }, []);
-
   // Fetch Users
   const fetchUsers = useCallback(async () => {
     setIsLoading(true);
@@ -148,7 +123,6 @@ export function AdminUserManagement() {
         status: statusFilter,
         department: deptFilter,
         branch: branchFilter,
-        sub_branch: subBranchFilter,
         year: yearFilter,
         section: sectionFilter,
         page: currentPage,
@@ -170,7 +144,6 @@ export function AdminUserManagement() {
     statusFilter,
     deptFilter,
     branchFilter,
-    subBranchFilter,
     yearFilter,
     sectionFilter,
     currentPage,
@@ -188,7 +161,6 @@ export function AdminUserManagement() {
     setStatusFilter('all');
     setDeptFilter('all');
     setBranchFilter('all');
-    setSubBranchFilter('all');
     setYearFilter('all');
     setSectionFilter('all');
     setCurrentPage(1);
@@ -204,7 +176,6 @@ export function AdminUserManagement() {
     setFormRollNumber('');
     setFormDepartment('Engineering & Technology');
     setFormBranch('CSE');
-    setFormSubBranch('Cyber Security');
     setFormAcademicYear('2026–27');
     setFormYearOfStudy(initialRole === 'admin' ? 'Staff' : '1st Year');
     setFormSemester('Semester 1');
@@ -243,7 +214,6 @@ export function AdminUserManagement() {
         roll_number: formRole === 'student' ? formRollNumber.trim().toUpperCase() : undefined,
         department: formDepartment,
         branch: formBranch,
-        sub_branch: formSubBranch,
         academic_year: formAcademicYear,
         year_of_study: formYearOfStudy,
         semester: formSemester,
@@ -278,7 +248,6 @@ export function AdminUserManagement() {
     setFormRollNumber(user.roll_number || '');
     setFormDepartment(user.department || 'Engineering & Technology');
     setFormBranch(user.branch || 'CSE');
-    setFormSubBranch(user.sub_branch || 'Cyber Security');
     setFormAcademicYear(user.academic_year || '2026–27');
     setFormYearOfStudy(user.year_of_study || '1st Year');
     setFormSemester(user.semester || 'Semester 1');
@@ -306,7 +275,6 @@ export function AdminUserManagement() {
           roll_number: formRole === 'student' ? formRollNumber.trim().toUpperCase() : formRollNumber,
           department: formDepartment,
           branch: formBranch,
-          sub_branch: formSubBranch,
           academic_year: formAcademicYear,
           year_of_study: formYearOfStudy,
           semester: formSemester,
@@ -382,22 +350,20 @@ export function AdminUserManagement() {
     }
   };
 
-  // Filtered branches for form
-  const availableBranches = useMemo(() => {
-    return branches.length > 0 ? branches : [
-      { id: 'b-cse', name: 'Computer Science & Engineering', code: 'CSE', department_id: 'd1', is_active: true },
-      { id: 'b-ece', name: 'Electronics & Communication', code: 'ECE', department_id: 'd1', is_active: true },
-    ];
-  }, [branches]);
+  // Single source of truth academic hierarchy options
+  const departments = hierarchy.activeDepartments;
+  const branches = hierarchy.activeBranches;
+  const availableBranches = hierarchy.activeBranches;
 
-  // Filtered sub-branches for form
-  const availableSubBranches = useMemo(() => {
-    return subBranches.length > 0 ? subBranches : [
-      { id: 'sb-cyber', name: 'Cyber Security', code: 'CYBER', branch_id: 'b-cse', is_active: true },
-      { id: 'sb-ai', name: 'Artificial Intelligence & ML', code: 'AIML', branch_id: 'b-cse', is_active: true },
-      { id: 'sb-ds', name: 'Data Science', code: 'DS', branch_id: 'b-cse', is_active: true },
-    ];
-  }, [subBranches]);
+  const availableYears = useMemo(() => {
+    return hierarchy.getYearsForBranch(formBranch);
+  }, [hierarchy, formBranch]);
+
+  const availableSemesters = useMemo(() => {
+    return hierarchy.getSemestersForBranch(formBranch, formYearOfStudy);
+  }, [hierarchy, formBranch, formYearOfStudy]);
+
+  const availableSections = hierarchy.activeSections;
 
   return (
     <div className="space-y-6">
@@ -522,30 +488,15 @@ export function AdminUserManagement() {
             </div>
 
             <div>
-              <Select value={subBranchFilter} onValueChange={(v) => { setSubBranchFilter(v); setCurrentPage(1); }}>
-                <SelectTrigger className="h-8 text-[11px] rounded-lg bg-background/60">
-                  <SelectValue placeholder="Sub-Branch" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Sub-Branches</SelectItem>
-                  {subBranches.map((sb) => (
-                    <SelectItem key={sb.id} value={sb.name}>{sb.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
               <Select value={yearFilter} onValueChange={(v) => { setYearFilter(v); setCurrentPage(1); }}>
                 <SelectTrigger className="h-8 text-[11px] rounded-lg bg-background/60">
                   <SelectValue placeholder="Year" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Years</SelectItem>
-                  <SelectItem value="1st Year">1st Year</SelectItem>
-                  <SelectItem value="2nd Year">2nd Year</SelectItem>
-                  <SelectItem value="3rd Year">3rd Year</SelectItem>
-                  <SelectItem value="4th Year">4th Year</SelectItem>
+                  {hierarchy.getYearsForBranch(branchFilter).map((yr) => (
+                    <SelectItem key={yr} value={yr}>{yr}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -557,10 +508,9 @@ export function AdminUserManagement() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Sections</SelectItem>
-                  <SelectItem value="A">Section A</SelectItem>
-                  <SelectItem value="B">Section B</SelectItem>
-                  <SelectItem value="C">Section C</SelectItem>
-                  <SelectItem value="D">Section D</SelectItem>
+                  {hierarchy.activeSections.map((sec) => (
+                    <SelectItem key={sec.id} value={sec.code}>Section {sec.code}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -613,7 +563,6 @@ export function AdminUserManagement() {
                     <th className="py-3 px-3">Role</th>
                     <th className="py-3 px-3">Roll Number</th>
                     <th className="py-3 px-3">Department & Branch</th>
-                    <th className="py-3 px-3">Sub-Branch</th>
                     <th className="py-3 px-3">Class</th>
                     <th className="py-3 px-3">Status</th>
                     <th className="py-3 px-3">Created</th>
@@ -669,16 +618,6 @@ export function AdminUserManagement() {
                           <div className="text-[10px] text-muted-foreground truncate max-w-[120px]">
                             {user.department || 'Engineering'}
                           </div>
-                        </td>
-
-                        <td className="py-3 px-3">
-                          {user.sub_branch ? (
-                            <Badge variant="secondary" className="text-[10px] font-normal">
-                              {user.sub_branch}
-                            </Badge>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
                         </td>
 
                         <td className="py-3 px-3 text-muted-foreground">
@@ -812,7 +751,7 @@ export function AdminUserManagement() {
                   <div className="grid grid-cols-2 gap-2 text-[11px] pt-1 border-t border-border/50 text-muted-foreground">
                     <div>
                       <span className="text-[10px] uppercase font-semibold text-muted-foreground/70 block">Branch</span>
-                      <span className="text-foreground font-medium">{user.sub_branch || user.branch || 'CSE'}</span>
+                      <span className="text-foreground font-medium">{user.branch || 'CSE'}</span>
                     </div>
                     <div>
                       <span className="text-[10px] uppercase font-semibold text-muted-foreground/70 block">Class & Sec</span>
@@ -1049,7 +988,7 @@ export function AdminUserManagement() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label className="text-[11px]">Branch</Label>
+                  <Label className="text-[11px]">Branch / Program</Label>
                   <Select value={formBranch} onValueChange={setFormBranch}>
                     <SelectTrigger className="h-8 text-xs rounded-xl mt-1">
                       <SelectValue placeholder="Branch" />
@@ -1057,20 +996,6 @@ export function AdminUserManagement() {
                     <SelectContent>
                       {availableBranches.map((b) => (
                         <SelectItem key={b.id} value={b.code || b.name}>{b.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label className="text-[11px]">Sub-Branch</Label>
-                  <Select value={formSubBranch} onValueChange={setFormSubBranch}>
-                    <SelectTrigger className="h-8 text-xs rounded-xl mt-1">
-                      <SelectValue placeholder="Sub-Branch" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableSubBranches.map((sb) => (
-                        <SelectItem key={sb.id} value={sb.name}>{sb.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -1085,10 +1010,9 @@ export function AdminUserManagement() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="1st Year">1st Year</SelectItem>
-                      <SelectItem value="2nd Year">2nd Year</SelectItem>
-                      <SelectItem value="3rd Year">3rd Year</SelectItem>
-                      <SelectItem value="4th Year">4th Year</SelectItem>
+                      {availableYears.map((yr) => (
+                        <SelectItem key={yr} value={yr}>{yr}</SelectItem>
+                      ))}
                       {formRole === 'admin' && <SelectItem value="Staff">Staff</SelectItem>}
                     </SelectContent>
                   </Select>
@@ -1101,8 +1025,9 @@ export function AdminUserManagement() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Semester 1">Semester 1</SelectItem>
-                      <SelectItem value="Semester 2">Semester 2</SelectItem>
+                      {availableSemesters.map((sem) => (
+                        <SelectItem key={sem} value={sem}>{sem}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1114,10 +1039,9 @@ export function AdminUserManagement() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="A">Section A</SelectItem>
-                      <SelectItem value="B">Section B</SelectItem>
-                      <SelectItem value="C">Section C</SelectItem>
-                      <SelectItem value="D">Section D</SelectItem>
+                      {availableSections.map((sec) => (
+                        <SelectItem key={sec.id} value={sec.code}>Section {sec.code}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1243,9 +1167,9 @@ export function AdminUserManagement() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border">
+            <div className="pt-2 border-t border-border">
               <div>
-                <Label className="text-[11px]">Branch</Label>
+                <Label className="text-[11px]">Branch / Program</Label>
                 <Select value={formBranch} onValueChange={setFormBranch}>
                   <SelectTrigger className="h-8 text-xs rounded-xl mt-1">
                     <SelectValue />
@@ -1253,20 +1177,6 @@ export function AdminUserManagement() {
                   <SelectContent>
                     {availableBranches.map((b) => (
                       <SelectItem key={b.id} value={b.code || b.name}>{b.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label className="text-[11px]">Sub-Branch</Label>
-                <Select value={formSubBranch} onValueChange={setFormSubBranch}>
-                  <SelectTrigger className="h-8 text-xs rounded-xl mt-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableSubBranches.map((sb) => (
-                      <SelectItem key={sb.id} value={sb.name}>{sb.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -1281,10 +1191,9 @@ export function AdminUserManagement() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="1st Year">1st Year</SelectItem>
-                    <SelectItem value="2nd Year">2nd Year</SelectItem>
-                    <SelectItem value="3rd Year">3rd Year</SelectItem>
-                    <SelectItem value="4th Year">4th Year</SelectItem>
+                    {availableYears.map((yr) => (
+                      <SelectItem key={yr} value={yr}>{yr}</SelectItem>
+                    ))}
                     <SelectItem value="Staff">Staff</SelectItem>
                   </SelectContent>
                 </Select>
@@ -1297,8 +1206,9 @@ export function AdminUserManagement() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Semester 1">Semester 1</SelectItem>
-                    <SelectItem value="Semester 2">Semester 2</SelectItem>
+                    {availableSemesters.map((sem) => (
+                      <SelectItem key={sem} value={sem}>{sem}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -1310,10 +1220,9 @@ export function AdminUserManagement() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="A">Section A</SelectItem>
-                    <SelectItem value="B">Section B</SelectItem>
-                    <SelectItem value="C">Section C</SelectItem>
-                    <SelectItem value="D">Section D</SelectItem>
+                    {availableSections.map((sec) => (
+                      <SelectItem key={sec.id} value={sec.code}>Section {sec.code}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

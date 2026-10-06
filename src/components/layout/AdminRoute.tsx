@@ -26,5 +26,9 @@ export function AdminRoute() {
     return <Navigate to="/dashboard" replace />;
   }
 
+  if (profile?.status === 'inactive' || profile?.status === 'suspended' || profile?.is_active === false) {
+    return <Navigate to="/login?reason=inactive" replace />;
+  }
+
   return <Outlet />;
 }
