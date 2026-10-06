@@ -45,6 +45,24 @@ function NativeAppBridge() {
   return null;
 }
 
+function RootRedirect() {
+  const { user, isAdmin, isLoading } = useAuth();
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <div className="w-10 h-10 border-3 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+  if (isAdmin) {
+    return <Navigate to="/admin" replace />;
+  }
+  return <Navigate to="/dashboard" replace />;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
@@ -59,7 +77,7 @@ const App = () => (
               {/* Public Routes */}
               <Route path="/login" element={<Login defaultMode="login" />} />
               <Route path="/signup" element={<Login defaultMode="signup" />} />
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/" element={<RootRedirect />} />
 
               {/* Student Academic Companion Layout */}
               <Route element={<DashboardLayout />}>

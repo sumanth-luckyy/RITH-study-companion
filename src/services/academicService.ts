@@ -2448,7 +2448,7 @@ export const academicService = {
 
       // 1. Create real Auth user via transient client so admin's active session is never lost
       const transient = createTransientClient();
-      const password = userData.password || `Study@${Math.floor(1000 + Math.random() * 9000)}`;
+      const password = userData.password || (role === 'student' ? rollNumber : `Study@${Math.floor(1000 + Math.random() * 9000)}`);
 
       const { data: authData, error: authError } = await transient.auth.signUp({
         email,

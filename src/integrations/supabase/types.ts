@@ -15,9 +15,9 @@ export type Database = {
   public: {
     Tables: {
       [key: string]: {
-        Row: any
-        Insert: any
-        Update: any
+        Row: Record<string, unknown>
+        Insert: Record<string, unknown>
+        Update: Record<string, unknown>
         Relationships: {
           foreignKeyName: string
           columns: string[]

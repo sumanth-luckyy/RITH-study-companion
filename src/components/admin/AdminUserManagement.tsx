@@ -1006,14 +1006,17 @@ export function AdminUserManagement() {
 
               {/* Password */}
               <div>
-                <Label className="text-xs">Initial Password (Optional / Auto-generated if blank)</Label>
+                <Label className="text-xs">
+                  {formRole === 'student' ? 'Initial Password (Defaults to student roll number if blank)' : 'Password *'}
+                </Label>
                 <div className="relative mt-1">
                   <Input
                     type={showPassword ? 'text' : 'password'}
                     value={formPassword}
                     onChange={(e) => setFormPassword(e.target.value)}
-                    placeholder="Min 6 characters (or blank for auto Study@XXXX)"
+                    placeholder={formRole === 'student' ? 'Blank = Student Roll Number (Default)' : 'Min 6 characters'}
                     className="rounded-xl h-9 text-xs pr-9"
+                    required={formRole === 'admin'}
                   />
                   <button
                     type="button"

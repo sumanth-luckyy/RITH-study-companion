@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   User,
   Mail,
@@ -11,6 +12,7 @@ import {
   Check,
   Building,
   BookOpen,
+  Key,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -25,6 +27,7 @@ import {
 } from '@/components/ui/dialog';
 
 export default function Profile() {
+  const navigate = useNavigate();
   const { profile, updateProfile } = useAuth();
   const { toast } = useToast();
 
@@ -208,11 +211,23 @@ export default function Profile() {
                 {profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : 'August 2025'}
               </span>
             </div>
-            <div className="flex justify-between py-1.5">
+            <div className="flex justify-between py-1.5 items-center">
               <span className="text-muted-foreground">Account Status:</span>
               <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                 ACTIVE & VERIFIED
               </span>
+            </div>
+
+            <div className="pt-3 border-t border-border/40">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/settings')}
+                className="w-full rounded-xl text-xs gap-1.5"
+              >
+                <Key className="w-3.5 h-3.5 text-primary" />
+                Change Password in Settings
+              </Button>
             </div>
           </div>
         </div>

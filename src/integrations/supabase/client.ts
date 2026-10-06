@@ -2,8 +2,26 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+const envUrl = import.meta.env.VITE_SUPABASE_URL;
+const envKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+export const isSupabaseConfigured = Boolean(
+  envUrl &&
+  envKey &&
+  envUrl.trim() !== '' &&
+  envKey.trim() !== '' &&
+  !envUrl.includes('your-project')
+);
+
+if (!isSupabaseConfigured && import.meta.env.DEV) {
+  console.warn(
+    'Supabase configuration warning: Missing or placeholder VITE_SUPABASE_URL or VITE_SUPABASE_PUBLISHABLE_KEY. Please ensure environment variables are configured in your .env or deployment provider.'
+  );
+}
+
+// Use fallback URL and token when unconfigured to prevent instant "supabaseUrl is required" React application crash
+const SUPABASE_URL = isSupabaseConfigured ? envUrl.trim() : 'https://placeholder.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY = isSupabaseConfigured ? envKey.trim() : 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.placeholder';
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";

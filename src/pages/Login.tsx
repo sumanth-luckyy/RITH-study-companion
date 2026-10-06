@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   GraduationCap,
+  Shield,
   Lock,
   Eye,
   EyeOff,
@@ -10,13 +11,11 @@ import {
   Hash,
   ArrowRight,
   AlertCircle,
-  HelpCircle,
   CheckCircle2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { parseRollNumber } from '@/lib/rollNumberParser';
 
 interface LoginProps {
   defaultMode?: 'login' | 'signup';
@@ -25,32 +24,31 @@ interface LoginProps {
 export default function Login({ defaultMode }: LoginProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { signIn, signUp, resetPassword, user, isAdmin } = useAuth();
+  const { signInStudent, signInAdmin, signUpStudent, user, isAdmin } = useAuth();
   const { toast } = useToast();
 
-  // Determine initial mode from prop or URL
-  const initialMode = defaultMode || (location.pathname === '/signup' ? 'signup' : 'login');
-  const [authMode, setAuthMode] = useState<'login' | 'signup'>(initialMode);
+  // Active portal tab: 'student' or 'admin'
+  const [activePortal, setActivePortal] = useState<'student' | 'admin'>('student');
 
-  // Sign In Form State
-  const [loginIdentifier, setLoginIdentifier] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
-  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  // Student mode: 'login' or 'signup'
+  const initialStudentMode = defaultMode || (location.pathname === '/signup' ? 'signup' : 'login');
+  const [studentMode, setStudentMode] = useState<'login' | 'signup'>(initialStudentMode);
 
-  // Sign Up Form State
+  // Student Login State
+  const [studentRollNumber, setStudentRollNumber] = useState('');
+  const [studentCustomPassword, setStudentCustomPassword] = useState('');
+  const [requiresCustomPassword, setRequiresCustomPassword] = useState(false);
+  const [showCustomPassword, setShowCustomPassword] = useState(false);
+
+  // Student Sign Up State
   const [signupFullName, setSignupFullName] = useState('');
   const [signupRollNumber, setSignupRollNumber] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
-  const [signupPassword, setSignupPassword] = useState('');
-  const [signupConfirmPassword, setSignupConfirmPassword] = useState('');
-  const [showSignupPassword, setShowSignupPassword] = useState(false);
-  const [showSignupConfirmPassword, setShowSignupConfirmPassword] = useState(false);
 
-  // Forgot Password State
-  const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [resetEmail, setResetEmail] = useState('');
-  const [isResetting, setIsResetting] = useState(false);
-  const [resetSent, setResetSent] = useState(false);
+  // Admin Login State
+  const [adminIdentifier, setAdminIdentifier] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
 
   // Feedback State
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -60,13 +58,14 @@ export default function Login({ defaultMode }: LoginProps) {
   // Sync mode if pathname changes
   useEffect(() => {
     if (location.pathname === '/signup') {
-      setAuthMode('signup');
+      setActivePortal('student');
+      setStudentMode('signup');
     } else if (location.pathname === '/login') {
-      setAuthMode('login');
+      setStudentMode('login');
     }
   }, [location.pathname]);
 
-  // Redirect if already logged in
+  // Redirect if already authenticated
   useEffect(() => {
     if (user) {
       if (isAdmin) {
@@ -77,11 +76,20 @@ export default function Login({ defaultMode }: LoginProps) {
     }
   }, [user, isAdmin, navigate]);
 
-  // Switch modes and clear messages
-  const switchMode = (mode: 'login' | 'signup') => {
-    setAuthMode(mode);
+  const switchPortal = (portal: 'student' | 'admin') => {
+    setActivePortal(portal);
     setErrorMessage('');
     setSuccessMessage('');
+    setRequiresCustomPassword(false);
+    setStudentCustomPassword('');
+  };
+
+  const switchStudentMode = (mode: 'login' | 'signup') => {
+    setStudentMode(mode);
+    setErrorMessage('');
+    setSuccessMessage('');
+    setRequiresCustomPassword(false);
+    setStudentCustomPassword('');
     if (mode === 'signup') {
       navigate('/signup', { replace: true });
     } else {
@@ -89,38 +97,46 @@ export default function Login({ defaultMode }: LoginProps) {
     }
   };
 
-  // Handle Sign In submission
-  const handleLoginSubmit = async (e: React.FormEvent) => {
+  // 1. Handle Student Sign In
+  const handleStudentLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
     setSuccessMessage('');
 
-    if (!loginIdentifier.trim() || !loginPassword.trim()) {
-      setErrorMessage('Please enter your roll number or email and password.');
+    const cleanRoll = studentRollNumber.trim().toUpperCase();
+    if (!cleanRoll) {
+      setErrorMessage('Please enter your roll number.');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const { error } = await signIn(loginIdentifier.trim(), loginPassword);
-      if (error) {
-        setErrorMessage(error.message);
+      const res = await signInStudent(
+        cleanRoll,
+        requiresCustomPassword ? studentCustomPassword : undefined
+      );
+
+      if (res.error) {
+        if (res.requiresCustomPassword) {
+          setRequiresCustomPassword(true);
+        }
+        setErrorMessage(res.error.message);
       } else {
         toast({
           title: 'Welcome to Study Companion',
           description: 'Logged in successfully.',
         });
-        // Redirect handled by useEffect
+        navigate('/dashboard', { replace: true });
       }
-    } catch (err: unknown) {
-      setErrorMessage(err instanceof Error ? err.message : 'Authentication failed.');
+    } catch {
+      setErrorMessage('Unable to sign in. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Handle Sign Up submission
-  const handleSignupSubmit = async (e: React.FormEvent) => {
+  // 2. Handle Student Sign Up
+  const handleStudentSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
     setSuccessMessage('');
@@ -128,53 +144,23 @@ export default function Login({ defaultMode }: LoginProps) {
     const fullName = signupFullName.trim();
     const rollNumber = signupRollNumber.trim().toUpperCase();
     const email = signupEmail.trim().toLowerCase();
-    const password = signupPassword;
-    const confirmPassword = signupConfirmPassword;
 
-    // 1. Validation: Full Name
     if (!fullName) {
       setErrorMessage('Please enter your full name.');
       return;
     }
-
-    // 2. Validation: Roll Number
     if (!rollNumber) {
       setErrorMessage('Please enter your roll number.');
       return;
     }
-
-    const parsedRoll = parseRollNumber(rollNumber);
-    if (!parsedRoll.isValid) {
-      setErrorMessage(parsedRoll.errorMessage || 'Invalid roll number format.');
-      return;
-    }
-
-    // 3. Validation: Email
     if (!email || !email.includes('@') || !email.includes('.')) {
       setErrorMessage('Please enter a valid email address.');
       return;
     }
 
-    // 4. Validation: Password & Confirm Password
-    if (!password) {
-      setErrorMessage('Please enter a password.');
-      return;
-    }
-    if (password.length < 6) {
-      setErrorMessage('Password must be at least 6 characters.');
-      return;
-    }
-    if (password !== confirmPassword) {
-      setErrorMessage('Passwords do not match.');
-      return;
-    }
-
     setIsSubmitting(true);
     try {
-      const { error } = await signUp(email, password, {
-        roll_number: rollNumber,
-        full_name: fullName,
-      });
+      const { error } = await signUpStudent(fullName, rollNumber, email);
 
       if (error) {
         setErrorMessage(error.message);
@@ -183,58 +169,58 @@ export default function Login({ defaultMode }: LoginProps) {
           title: 'Account Created',
           description: 'Your student account has been created successfully.',
         });
-        setSuccessMessage('Account created successfully! Loading your academic dashboard...');
+        setSuccessMessage('Account created successfully! Loading your student dashboard...');
+        navigate('/dashboard', { replace: true });
       }
     } catch (err: unknown) {
-      setErrorMessage(err instanceof Error ? err.message : 'Registration failed.');
+      setErrorMessage(err instanceof Error ? err.message : 'Unable to create your account. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Handle Forgot Password submission
-  const handleResetPassword = async (e: React.FormEvent) => {
+  // 3. Handle Admin Sign In
+  const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!resetEmail.trim() || !resetEmail.includes('@')) {
-      toast({
-        title: 'Email Required',
-        description: 'Please enter a valid registered email address.',
-        variant: 'destructive',
-      });
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    const adminId = adminIdentifier.trim();
+    const pass = adminPassword;
+
+    if (!adminId) {
+      setErrorMessage('Please enter your admin ID.');
+      return;
+    }
+    if (!pass) {
+      setErrorMessage('Please enter your password.');
       return;
     }
 
-    setIsResetting(true);
+    setIsSubmitting(true);
     try {
-      const { error } = await resetPassword(resetEmail.trim());
+      const { error } = await signInAdmin(adminId, pass);
+
       if (error) {
-        toast({
-          title: 'Reset Failed',
-          description: error.message,
-          variant: 'destructive',
-        });
+        setErrorMessage(error.message);
       } else {
-        setResetSent(true);
         toast({
-          title: 'Reset Link Sent',
-          description: 'Password reset link sent to your email. Please check your inbox.',
+          title: 'Administrator Access Granted',
+          description: 'Welcome to the Admin Portal.',
         });
+        navigate('/admin', { replace: true });
       }
-    } catch (err: unknown) {
-      toast({
-        title: 'Error',
-        description: err instanceof Error ? err.message : 'Could not process password reset.',
-        variant: 'destructive',
-      });
+    } catch {
+      setErrorMessage('Invalid admin credentials.');
     } finally {
-      setIsResetting(false);
+      setIsSubmitting(false);
     }
   };
 
   return (
     <div className="min-h-screen bg-background flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
+      {/* Brand Header */}
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-        {/* Brand Logo & Header */}
         <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary text-primary-foreground shadow-md mb-3">
           <GraduationCap className="w-8 h-8" />
         </div>
@@ -242,43 +228,89 @@ export default function Login({ defaultMode }: LoginProps) {
           Study Companion
         </h1>
         <p className="mt-1 text-xs sm:text-sm text-muted-foreground leading-relaxed max-w-sm mx-auto">
-          {authMode === 'login'
-            ? 'Your personal academic portal — everything you need for your college academics in one place.'
-            : 'Create your student account'}
+          {activePortal === 'student'
+            ? 'Your institutional academic portal — access subjects, assignments, timetable, and study resources.'
+            : 'Institutional Administrator Management Portal'}
         </p>
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+      <div className="mt-7 sm:mx-auto sm:w-full sm:max-w-md">
+        {/* Top Portal Switcher (Student vs Admin) */}
+        <div className="flex bg-muted/80 p-1 rounded-2xl mb-4 border border-border/60">
+          <button
+            type="button"
+            onClick={() => switchPortal('student')}
+            className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-2 ${
+              activePortal === 'student'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <GraduationCap className="w-4 h-4 text-primary" />
+            <span>Student Portal</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => switchPortal('admin')}
+            className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-2 ${
+              activePortal === 'admin'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Shield className="w-4 h-4 text-purple-500" />
+            <span>Administrator</span>
+          </button>
+        </div>
+
+        {/* Main Card */}
         <div className="bg-card py-7 px-6 sm:px-9 shadow-sm rounded-2xl border border-border">
-          {/* Header title & Mode switch buttons */}
+          {/* Header Title inside Card */}
           <div className="flex items-center justify-between mb-6 pb-3 border-b border-border/50">
-            <h2 className="text-lg font-bold text-foreground tracking-tight">
-              {authMode === 'login' ? 'Sign In' : 'Create Account'}
-            </h2>
-            <div className="flex bg-muted p-1 rounded-xl text-xs">
-              <button
-                type="button"
-                onClick={() => switchMode('login')}
-                className={`px-3 py-1 rounded-lg font-medium transition-all ${
-                  authMode === 'login'
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                Sign In
-              </button>
-              <button
-                type="button"
-                onClick={() => switchMode('signup')}
-                className={`px-3 py-1 rounded-lg font-medium transition-all ${
-                  authMode === 'signup'
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                Sign Up
-              </button>
+            <div>
+              <h2 className="text-lg font-bold text-foreground tracking-tight">
+                {activePortal === 'student'
+                  ? studentMode === 'login'
+                    ? 'Student Sign In'
+                    : 'Student Registration'
+                  : 'Admin Login'}
+              </h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {activePortal === 'student'
+                  ? studentMode === 'login'
+                    ? 'Enter your institutional roll number'
+                    : 'Simple 3-field registration'
+                  : 'Sign in with your administrator credentials'}
+              </p>
             </div>
+
+            {/* In Student Portal, toggle between Sign In and Sign Up */}
+            {activePortal === 'student' && (
+              <div className="flex bg-muted p-1 rounded-xl text-xs">
+                <button
+                  type="button"
+                  onClick={() => switchStudentMode('login')}
+                  className={`px-3 py-1 rounded-lg font-medium transition-all ${
+                    studentMode === 'login'
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Sign In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => switchStudentMode('signup')}
+                  className={`px-3 py-1 rounded-lg font-medium transition-all ${
+                    studentMode === 'signup'
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Sign Up
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Feedback Alerts */}
@@ -296,70 +328,73 @@ export default function Login({ defaultMode }: LoginProps) {
             </div>
           )}
 
-          {/* ======================= 1. SIGN IN FORM ======================= */}
-          {authMode === 'login' ? (
-            <form onSubmit={handleLoginSubmit} className="space-y-4">
-              {/* Roll Number or Email */}
+          {/* ================================================================= */}
+          {/* 1. STUDENT AUTHENTICATION FLOW                                    */}
+          {/* ================================================================= */}
+          {activePortal === 'student' && studentMode === 'login' && (
+            <form onSubmit={handleStudentLogin} className="space-y-4">
+              {/* Roll Number Only */}
               <div>
-                <label htmlFor="login-id" className="block text-xs font-semibold text-foreground mb-1.5">
-                  Roll Number or Email
+                <label
+                  htmlFor="student-roll"
+                  className="block text-xs font-semibold text-foreground mb-1.5"
+                >
+                  Roll Number
                 </label>
                 <div className="relative">
-                  <User className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Hash className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
-                    id="login-id"
+                    id="student-roll"
                     type="text"
                     required
                     autoFocus
                     autoComplete="username"
-                    value={loginIdentifier}
-                    onChange={(e) => setLoginIdentifier(e.target.value)}
-                    placeholder="e.g. 25ME1A4602 or name@college.edu"
-                    className="w-full pl-9 pr-3 py-2.5 text-xs sm:text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                    value={studentRollNumber}
+                    onChange={(e) => setStudentRollNumber(e.target.value.toUpperCase())}
+                    placeholder="e.g. 25ME1A4602"
+                    className="w-full pl-9 pr-3 py-2.5 text-xs sm:text-sm uppercase font-mono rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                   />
                 </div>
+                <p className="text-[11px] text-muted-foreground mt-1.5">
+                  Sign in directly with your college roll number.
+                </p>
               </div>
 
-              {/* Password */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label htmlFor="login-pass" className="block text-xs font-semibold text-foreground">
-                    Password
+              {/* Private password field (only displayed if the student previously set a custom password) */}
+              {requiresCustomPassword && (
+                <div className="pt-1">
+                  <label
+                    htmlFor="student-custom-pass"
+                    className="block text-xs font-semibold text-foreground mb-1.5"
+                  >
+                    Private Password
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setResetEmail(loginIdentifier.includes('@') ? loginIdentifier : '');
-                      setResetSent(false);
-                      setShowForgotPassword(true);
-                    }}
-                    className="text-[11px] text-primary hover:underline font-medium"
-                  >
-                    Forgot Password?
-                  </button>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      id="student-custom-pass"
+                      type={showCustomPassword ? 'text' : 'password'}
+                      required
+                      autoComplete="current-password"
+                      value={studentCustomPassword}
+                      onChange={(e) => setStudentCustomPassword(e.target.value)}
+                      placeholder="Enter your private password"
+                      className="w-full pl-9 pr-9 py-2.5 text-xs sm:text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCustomPassword(!showCustomPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showCustomPassword ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
                 </div>
-                <div className="relative">
-                  <Lock className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    id="login-pass"
-                    type={showLoginPassword ? 'text' : 'password'}
-                    required
-                    autoComplete="current-password"
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                    placeholder="Enter your password"
-                    className="w-full pl-9 pr-9 py-2.5 text-xs sm:text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowLoginPassword(!showLoginPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    aria-label={showLoginPassword ? 'Hide password' : 'Show password'}
-                  >
-                    {showLoginPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
+              )}
 
               {/* Sign In Button */}
               <Button
@@ -380,13 +415,13 @@ export default function Login({ defaultMode }: LoginProps) {
                 )}
               </Button>
 
-              {/* Switch to Sign Up */}
-              <div className="mt-6 pt-5 border-t border-border/60 text-center">
+              {/* Link to Sign Up */}
+              <div className="mt-5 pt-4 border-t border-border/60 text-center">
                 <p className="text-xs text-muted-foreground">
                   Don't have an account?{' '}
                   <button
                     type="button"
-                    onClick={() => switchMode('signup')}
+                    onClick={() => switchStudentMode('signup')}
                     className="text-primary font-semibold hover:underline"
                   >
                     Sign Up
@@ -394,12 +429,19 @@ export default function Login({ defaultMode }: LoginProps) {
                 </p>
               </div>
             </form>
-          ) : (
-            /* ======================= 2. DIRECT STUDENT SIGNUP FORM ======================= */
-            <form onSubmit={handleSignupSubmit} className="space-y-3.5">
+          )}
+
+          {/* ================================================================= */}
+          {/* 2. STUDENT SIGN UP FLOW                                           */}
+          {/* ================================================================= */}
+          {activePortal === 'student' && studentMode === 'signup' && (
+            <form onSubmit={handleStudentSignup} className="space-y-3.5">
               {/* Full Name */}
               <div>
-                <label htmlFor="signup-name" className="block text-xs font-semibold text-foreground mb-1">
+                <label
+                  htmlFor="signup-name"
+                  className="block text-xs font-semibold text-foreground mb-1"
+                >
                   Full Name
                 </label>
                 <div className="relative">
@@ -419,7 +461,10 @@ export default function Login({ defaultMode }: LoginProps) {
 
               {/* Roll Number */}
               <div>
-                <label htmlFor="signup-roll" className="block text-xs font-semibold text-foreground mb-1">
+                <label
+                  htmlFor="signup-roll"
+                  className="block text-xs font-semibold text-foreground mb-1"
+                >
                   Roll Number
                 </label>
                 <div className="relative">
@@ -434,16 +479,17 @@ export default function Login({ defaultMode }: LoginProps) {
                     className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm uppercase font-mono rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                   />
                 </div>
-                {signupRollNumber.length >= 6 && (
-                  <p className="text-[10px] text-muted-foreground mt-1">
-                    Format: Year (25) + College (ME) + Branch (1A) + Roll (4602)
-                  </p>
-                )}
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Format: Year (25) + College (ME) + Branch (1A) + Roll (4602)
+                </p>
               </div>
 
               {/* Email */}
               <div>
-                <label htmlFor="signup-email" className="block text-xs font-semibold text-foreground mb-1">
+                <label
+                  htmlFor="signup-email"
+                  className="block text-xs font-semibold text-foreground mb-1"
+                >
                   Email
                 </label>
                 <div className="relative">
@@ -461,63 +507,7 @@ export default function Login({ defaultMode }: LoginProps) {
                 </div>
               </div>
 
-              {/* Password */}
-              <div>
-                <label htmlFor="signup-pass" className="block text-xs font-semibold text-foreground mb-1">
-                  Password
-                </label>
-                <div className="relative">
-                  <Lock className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    id="signup-pass"
-                    type={showSignupPassword ? 'text' : 'password'}
-                    required
-                    autoComplete="new-password"
-                    value={signupPassword}
-                    onChange={(e) => setSignupPassword(e.target.value)}
-                    placeholder="Minimum 6 characters"
-                    className="w-full pl-9 pr-9 py-2 text-xs sm:text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowSignupPassword(!showSignupPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    aria-label={showSignupPassword ? 'Hide password' : 'Show password'}
-                  >
-                    {showSignupPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Confirm Password */}
-              <div>
-                <label htmlFor="signup-cpass" className="block text-xs font-semibold text-foreground mb-1">
-                  Confirm Password
-                </label>
-                <div className="relative">
-                  <Lock className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    id="signup-cpass"
-                    type={showSignupConfirmPassword ? 'text' : 'password'}
-                    required
-                    autoComplete="new-password"
-                    value={signupConfirmPassword}
-                    onChange={(e) => setSignupConfirmPassword(e.target.value)}
-                    placeholder="Re-enter password"
-                    className="w-full pl-9 pr-9 py-2 text-xs sm:text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowSignupConfirmPassword(!showSignupConfirmPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    aria-label={showSignupConfirmPassword ? 'Hide password' : 'Show password'}
-                  >
-                    {showSignupConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Create Account Button */}
+              {/* Submit Button */}
               <Button
                 type="submit"
                 disabled={isSubmitting}
@@ -526,7 +516,7 @@ export default function Login({ defaultMode }: LoginProps) {
                 {isSubmitting ? (
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-                    <span>Creating Account...</span>
+                    <span>Creating Student Account...</span>
                   </div>
                 ) : (
                   <div className="flex items-center justify-center gap-2">
@@ -536,13 +526,13 @@ export default function Login({ defaultMode }: LoginProps) {
                 )}
               </Button>
 
-              {/* Switch to Sign In */}
+              {/* Link to Sign In */}
               <div className="mt-5 pt-4 border-t border-border/60 text-center">
                 <p className="text-xs text-muted-foreground">
                   Already have an account?{' '}
                   <button
                     type="button"
-                    onClick={() => switchMode('login')}
+                    onClick={() => switchStudentMode('login')}
                     className="text-primary font-semibold hover:underline"
                   >
                     Sign In
@@ -551,83 +541,99 @@ export default function Login({ defaultMode }: LoginProps) {
               </div>
             </form>
           )}
-        </div>
-      </div>
 
-      {/* Forgot Password Dialog */}
-      {showForgotPassword && (
-        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-card border border-border p-6 rounded-2xl max-w-sm w-full space-y-4 shadow-lg">
-            <div className="flex items-center gap-2 text-foreground font-semibold text-base">
-              <HelpCircle className="w-5 h-5 text-primary" />
-              <h3>Reset Password</h3>
-            </div>
-
-            {resetSent ? (
-              <div className="space-y-3">
-                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs flex items-start gap-2">
-                  <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                  <span>
-                    Password reset link sent to <strong>{resetEmail}</strong>. Please check your inbox and follow the instructions to reset your password.
-                  </span>
-                </div>
-                <Button
-                  onClick={() => setShowForgotPassword(false)}
-                  className="w-full rounded-xl"
-                  size="sm"
+          {/* ================================================================= */}
+          {/* 3. ADMIN AUTHENTICATION FLOW                                      */}
+          {/* ================================================================= */}
+          {activePortal === 'admin' && (
+            <form onSubmit={handleAdminLogin} className="space-y-4">
+              {/* Admin ID / Email */}
+              <div>
+                <label
+                  htmlFor="admin-id"
+                  className="block text-xs font-semibold text-foreground mb-1.5"
                 >
-                  Back to Sign In
-                </Button>
-              </div>
-            ) : (
-              <form onSubmit={handleResetPassword} className="space-y-3">
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Enter your registered institutional email address. We will send you a secure link to reset your account password.
-                </p>
-
-                <div>
-                  <label htmlFor="reset-email" className="block text-xs font-medium text-foreground mb-1">
-                    Registered Email
-                  </label>
+                  Admin ID / Email
+                </label>
+                <div className="relative">
+                  <User className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
-                    id="reset-email"
-                    type="email"
+                    id="admin-id"
+                    type="text"
                     required
-                    value={resetEmail}
-                    onChange={(e) => setResetEmail(e.target.value)}
-                    placeholder="name@college.edu"
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    autoFocus
+                    autoComplete="username"
+                    value={adminIdentifier}
+                    onChange={(e) => setAdminIdentifier(e.target.value)}
+                    placeholder="e.g. admin@college.edu or ADMIN ID"
+                    className="w-full pl-9 pr-3 py-2.5 text-xs sm:text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
                   />
                 </div>
+              </div>
 
-                <div className="p-2.5 rounded-xl bg-muted/60 text-[11px] text-muted-foreground leading-relaxed">
-                  Note: If you only know your Roll Number, please contact your department academic administrator to reset your credentials.
-                </div>
-
-                <div className="flex items-center gap-2 pt-2">
-                  <Button
+              {/* Password */}
+              <div>
+                <label
+                  htmlFor="admin-pass"
+                  className="block text-xs font-semibold text-foreground mb-1.5"
+                >
+                  Password
+                </label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    id="admin-pass"
+                    type={showAdminPassword ? 'text' : 'password'}
+                    required
+                    autoComplete="current-password"
+                    value={adminPassword}
+                    onChange={(e) => setAdminPassword(e.target.value)}
+                    placeholder="Enter administrator password"
+                    className="w-full pl-9 pr-9 py-2.5 text-xs sm:text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
+                  />
+                  <button
                     type="button"
-                    variant="outline"
-                    onClick={() => setShowForgotPassword(false)}
-                    className="flex-1 rounded-xl text-xs"
-                    size="sm"
+                    onClick={() => setShowAdminPassword(!showAdminPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    aria-label={showAdminPassword ? 'Hide password' : 'Show password'}
                   >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    disabled={isResetting}
-                    className="flex-1 rounded-xl text-xs bg-primary"
-                    size="sm"
-                  >
-                    {isResetting ? 'Sending...' : 'Send Reset Link'}
-                  </Button>
+                    {showAdminPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
                 </div>
-              </form>
-            )}
-          </div>
+              </div>
+
+              {/* Admin Sign In Button */}
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full rounded-xl py-2.5 text-xs sm:text-sm font-semibold mt-2 h-10 bg-purple-600 hover:bg-purple-700 text-white"
+              >
+                {isSubmitting ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Verifying Admin Access...</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center gap-2">
+                    <span>Admin Sign In</span>
+                    <Shield className="w-4 h-4" />
+                  </div>
+                )}
+              </Button>
+
+              <div className="mt-5 pt-4 border-t border-border/60 text-center">
+                <p className="text-[11px] text-muted-foreground">
+                  Administrator accounts are provisioned exclusively through the Admin Panel. Public admin registration is disabled.
+                </p>
+              </div>
+            </form>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
