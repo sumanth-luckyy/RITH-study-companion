@@ -95,8 +95,7 @@ export default function DriveCourses() {
       {/* Page Header */}
       <PageHeader
         title="Drive Courses"
-        description="Official institutional Google Drive course materials, lecture drives, and resources tailored to your academic group."
-        icon={FolderGit2}
+        subtitle="Official institutional Google Drive course materials, lecture drives, and resources tailored to your academic group."
       />
 
       {/* Filter and Search Bar */}

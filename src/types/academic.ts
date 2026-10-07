@@ -18,6 +18,10 @@ export interface AdminUserItem {
   status: UserStatus;
   is_active?: boolean;
   created_at: string;
+  department_id?: string;
+  branch_id?: string;
+  section_id?: string;
+  academic_year_id?: string;
 }
 
 // ============================================================================

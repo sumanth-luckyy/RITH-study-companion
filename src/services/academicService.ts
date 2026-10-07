@@ -8,6 +8,7 @@ import {
 import {
   doc,
   setDoc,
+  getDoc,
   getDocs,
   collection,
   query,
@@ -20,7 +21,9 @@ import {
 import {
   Subject,
   TimetableSlot,
+  DayOfWeek,
   Assignment,
+  AssignmentStatus,
   AcademicResource,
   Announcement,
   Classmate,
@@ -95,6 +98,68 @@ function setStored<T>(key: string, value: T): void {
   } catch (e) {
     console.warn(`Error persisting ${key} to storage:`, e);
   }
+}
+
+function matchesDepartment(cDept?: string, pDept?: string, cDeptId?: string, pDeptId?: string): boolean {
+  if (!cDept || cDept === 'All') return true;
+  if (!pDept || pDept === 'All') return true;
+  if (cDeptId && pDeptId && cDeptId === pDeptId) return true;
+  const cd = cDept.trim().toLowerCase();
+  const pd = pDept.trim().toLowerCase();
+  return cd === pd || cd.includes(pd) || pd.includes(cd);
+}
+
+function matchesBranch(cBranch?: string, pBranch?: string, cBranchId?: string, pBranchId?: string): boolean {
+  if (!cBranch || cBranch === 'All') return true;
+  if (!pBranch || pBranch === 'All') return true;
+  if (cBranchId && pBranchId && cBranchId === pBranchId) return true;
+
+  const cb = cBranch.trim().toLowerCase();
+  const pb = pBranch.trim().toLowerCase();
+  if (cb === pb || cb.includes(pb) || pb.includes(cb)) return true;
+
+  // Branch alias handling (e.g. CSE <-> Computer Science & Engineering)
+  const isCse = (b: string) => b.includes('cse') || b.includes('computer science');
+  const isCyber = (b: string) => b.includes('cyber') || (b.includes('cs') && !b.includes('computer science'));
+  const isAi = (b: string) => b.includes('ai') || b.includes('artificial intelligence') || b.includes('aiml');
+  const isData = (b: string) => b.includes('data') || b.includes('ds');
+  const isEce = (b: string) => b.includes('ece') || b.includes('electronics');
+  const isMec = (b: string) => b.includes('mech') || b.includes('mechanical');
+  const isCiv = (b: string) => b.includes('civil');
+
+  if (isCse(cb) && isCse(pb)) return true;
+  if (isCyber(cb) && isCyber(pb)) return true;
+  if (isAi(cb) && isAi(pb)) return true;
+  if (isData(cb) && isData(pb)) return true;
+  if (isEce(cb) && isEce(pb)) return true;
+  if (isMec(cb) && isMec(pb)) return true;
+  if (isCiv(cb) && isCiv(pb)) return true;
+
+  return false;
+}
+
+function matchesYear(cYear?: string, pYear?: string): boolean {
+  if (!cYear || cYear === 'All') return true;
+  if (!pYear || pYear === 'All') return true;
+  const cNum = cYear.replace(/[^0-9]/g, '');
+  const pNum = pYear.replace(/[^0-9]/g, '');
+  if (cNum && pNum) return cNum === pNum;
+  return cYear.toLowerCase() === pYear.toLowerCase();
+}
+
+function matchesSemester(cSem?: string, pSem?: string): boolean {
+  if (!cSem || cSem === 'All') return true;
+  if (!pSem || pSem === 'All') return true;
+  const cNum = cSem.replace(/[^0-9]/g, '');
+  const pNum = pSem.replace(/[^0-9]/g, '');
+  if (cNum && pNum) return cNum === pNum;
+  return cSem.toLowerCase() === pSem.toLowerCase();
+}
+
+function matchesSection(cSec?: string, pSec?: string): boolean {
+  if (!cSec || cSec === 'All') return true;
+  if (!pSec || pSec === 'All') return true;
+  return cSec.trim().toUpperCase() === pSec.trim().toUpperCase();
 }
 
 // Initial Institutional Seed Structure (Real College Topology)
@@ -688,6 +753,48 @@ export const academicService = {
     return list;
   },
 
+  async getTodayTimetable(
+    classGroup?: string,
+    filters?: {
+      department_id?: string;
+      branch_id?: string;
+      section_id?: string;
+      section?: string;
+    }
+  ): Promise<{
+    today: DayOfWeek;
+    schedule: TimetableSlot[];
+    currentClass: TimetableSlot | null;
+    nextClass: TimetableSlot | null;
+  }> {
+    const dayNames: DayOfWeek[] = ['Monday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const now = new Date();
+    const dayIndex = now.getDay();
+    const today: DayOfWeek = dayNames[dayIndex] || 'Monday';
+
+    const allSlots = await this.getTimetable(classGroup, filters);
+    const todaySlots = allSlots
+      .filter((s) => s.day === today)
+      .sort((a, b) => a.start_time.localeCompare(b.start_time));
+
+    const currentHours = now.getHours().toString().padStart(2, '0');
+    const currentMins = now.getMinutes().toString().padStart(2, '0');
+    const currentTimeStr = `${currentHours}:${currentMins}`;
+
+    const currentClass =
+      todaySlots.find((s) => s.start_time <= currentTimeStr && s.end_time > currentTimeStr) || null;
+
+    const nextClass =
+      todaySlots.find((s) => s.start_time > currentTimeStr) || null;
+
+    return {
+      today,
+      schedule: todaySlots,
+      currentClass,
+      nextClass,
+    };
+  },
+
   async createTimetableSlot(slot: Omit<TimetableSlot, 'id'>): Promise<TimetableSlot> {
     const list = getStored<TimetableSlot[]>(STORAGE_KEYS.TIMETABLE, []);
     const newSlot: TimetableSlot = {
@@ -699,6 +806,7 @@ export const academicService = {
       subject_name: slot.subject_name,
       faculty: slot.faculty,
       room: slot.room,
+      period_type: slot.period_type || 'Lecture',
       class_group: slot.class_group || 'All',
       color: slot.color || 'hsl(217, 91%, 60%)',
       department_id: slot.department_id,
@@ -736,6 +844,12 @@ export const academicService = {
   // ==========================================================================
   async getAssignments(
     classGroup?: string,
+    userIdOrFilters?: string | {
+      department_id?: string;
+      branch_id?: string;
+      section_id?: string;
+      section?: string;
+    },
     filters?: {
       department_id?: string;
       branch_id?: string;
@@ -744,13 +858,56 @@ export const academicService = {
     }
   ): Promise<Assignment[]> {
     let list = getStored<Assignment[]>(STORAGE_KEYS.ASSIGNMENTS, []);
+    const actualFilters = typeof userIdOrFilters === 'object' && userIdOrFilters !== null ? userIdOrFilters : filters;
+    const userId = typeof userIdOrFilters === 'string' ? userIdOrFilters : undefined;
+
     if (classGroup && classGroup !== 'All') {
       list = list.filter((a) => !a.class_group || a.class_group === classGroup || a.class_group === 'All');
     }
-    if (filters?.section && filters.section !== 'All') {
-      list = list.filter((a) => !a.section || a.section === filters.section);
+    if (actualFilters?.section && actualFilters.section !== 'All') {
+      list = list.filter((a) => !a.section || a.section === actualFilters.section);
     }
-    return list;
+    if (actualFilters?.department_id) {
+      list = list.filter((a) => !a.department_id || a.department_id === actualFilters.department_id);
+    }
+    if (actualFilters?.branch_id) {
+      list = list.filter((a) => !a.branch_id || a.branch_id === actualFilters.branch_id);
+    }
+
+    const key = `user_assignment_completions_${userId || 'current'}`;
+    const completedIds = getStored<string[]>(key, []);
+
+    return list.map((a) => {
+      const isDone = completedIds.includes(a.id) || !!a.is_completed;
+      return {
+        ...a,
+        is_completed: isDone,
+        status: isDone ? 'Completed' : (a.status || 'Pending'),
+      };
+    });
+  },
+
+  async toggleAssignmentCompletion(assignmentId: string, userId?: string): Promise<boolean> {
+    const key = `user_assignment_completions_${userId || 'current'}`;
+    const completedIds = getStored<string[]>(key, []);
+    const isCompleted = completedIds.includes(assignmentId);
+    let updated: string[];
+    if (isCompleted) {
+      updated = completedIds.filter((id) => id !== assignmentId);
+    } else {
+      updated = [...completedIds, assignmentId];
+    }
+    setStored(key, updated);
+
+    const list = getStored<Assignment[]>(STORAGE_KEYS.ASSIGNMENTS, []);
+    const idx = list.findIndex((a) => a.id === assignmentId);
+    if (idx !== -1) {
+      list[idx].is_completed = !isCompleted;
+      list[idx].status = !isCompleted ? 'Completed' : 'Pending';
+      setStored(STORAGE_KEYS.ASSIGNMENTS, list);
+    }
+
+    return !isCompleted;
   },
 
   async createAssignment(assignment: Omit<Assignment, 'id' | 'status'> & { status?: AssignmentStatus }): Promise<Assignment> {
@@ -808,7 +965,13 @@ export const academicService = {
   // ANNOUNCEMENTS CRUD
   // ==========================================================================
   async getAnnouncements(
-    classGroup?: string,
+    classGroupOrUserId?: string,
+    userIdOrFilters?: string | {
+      department_id?: string;
+      branch_id?: string;
+      section_id?: string;
+      section?: string;
+    },
     filters?: {
       department_id?: string;
       branch_id?: string;
@@ -817,13 +980,50 @@ export const academicService = {
     }
   ): Promise<Announcement[]> {
     let list = getStored<Announcement[]>(STORAGE_KEYS.ANNOUNCEMENTS, []);
+    let classGroup: string | undefined;
+    let userId: string | undefined;
+    let actualFilters: { department_id?: string; branch_id?: string; section_id?: string; section?: string } | undefined;
+
+    if (typeof userIdOrFilters === 'string') {
+      classGroup = classGroupOrUserId;
+      userId = userIdOrFilters;
+      actualFilters = filters;
+    } else if (typeof userIdOrFilters === 'object' && userIdOrFilters !== null) {
+      classGroup = classGroupOrUserId;
+      actualFilters = userIdOrFilters;
+    } else {
+      if (
+        classGroupOrUserId &&
+        (classGroupOrUserId.length > 15 ||
+          (classGroupOrUserId.includes('-') &&
+            classGroupOrUserId.length > 10 &&
+            !classGroupOrUserId.match(/^\d{2}[A-Z]/)))
+      ) {
+        userId = classGroupOrUserId;
+      } else {
+        classGroup = classGroupOrUserId;
+      }
+    }
+
     if (classGroup && classGroup !== 'All') {
       list = list.filter((a) => !a.class_group || a.class_group === classGroup || a.class_group === 'All');
     }
-    if (filters?.section && filters.section !== 'All') {
-      list = list.filter((a) => !a.section || a.section === filters.section);
+    if (actualFilters?.section && actualFilters.section !== 'All') {
+      list = list.filter((a) => !a.section || a.section === actualFilters.section);
     }
-    return list;
+    if (actualFilters?.department_id) {
+      list = list.filter((a) => !a.department_id || a.department_id === actualFilters.department_id);
+    }
+    if (actualFilters?.branch_id) {
+      list = list.filter((a) => !a.branch_id || a.branch_id === actualFilters.branch_id);
+    }
+
+    const readsKey = `announcement_reads_${userId || 'current'}`;
+    const reads = getStored<string[]>(readsKey, []);
+    return list.map((a) => ({
+      ...a,
+      is_read: reads.includes(a.id) || !!a.is_read,
+    }));
   },
 
   async createAnnouncement(announcement: Omit<Announcement, 'id' | 'date' | 'is_read'>): Promise<Announcement> {
@@ -861,8 +1061,7 @@ export const academicService = {
   },
 
   async markAnnouncementRead(id: string, userId?: string): Promise<void> {
-    if (!userId) return;
-    const readsKey = `announcement_reads_${userId}`;
+    const readsKey = `announcement_reads_${userId || 'current'}`;
     const reads = getStored<string[]>(readsKey, []);
     if (!reads.includes(id)) {
       reads.push(id);
@@ -870,46 +1069,107 @@ export const academicService = {
     }
   },
 
+  async markAllAnnouncementsRead(userId?: string): Promise<void> {
+    const list = getStored<Announcement[]>(STORAGE_KEYS.ANNOUNCEMENTS, []);
+    const readsKey = `announcement_reads_${userId || 'current'}`;
+    const allIds = list.map((a) => a.id);
+    setStored(readsKey, allIds);
+    const updated = list.map((a) => ({ ...a, is_read: true }));
+    setStored(STORAGE_KEYS.ANNOUNCEMENTS, updated);
+  },
+
   // ==========================================================================
   // RESOURCES & SUPABASE STORAGE INTEGRATION
   // ==========================================================================
-  async getResources(category?: string, semester?: string): Promise<AcademicResource[]> {
+  async getResources(
+    categoryOrOptions?: string | {
+      category?: string;
+      semester?: string;
+      subject?: string;
+      search?: string;
+      department_id?: string;
+      branch_id?: string;
+      section_id?: string;
+      section?: string;
+    },
+    semesterOrUserId?: string
+  ): Promise<AcademicResource[]> {
+    let options: {
+      category?: string;
+      semester?: string;
+      subject?: string;
+      search?: string;
+      department_id?: string;
+      branch_id?: string;
+      section_id?: string;
+      section?: string;
+    } = {};
+    let userId: string | undefined;
+
+    if (typeof categoryOrOptions === 'object' && categoryOrOptions !== null) {
+      options = categoryOrOptions;
+      userId = semesterOrUserId;
+    } else if (typeof categoryOrOptions === 'string') {
+      options = { category: categoryOrOptions, semester: semesterOrUserId };
+    } else {
+      userId = semesterOrUserId;
+    }
+
     let dbResources: AcademicResource[] = [];
     try {
       let query = supabase.from('pdfs').select('*').order('created_at', { ascending: false });
-      if (category && category !== 'All') {
-        query = query.eq('category', category);
+      if (options.category && options.category !== 'All') {
+        query = query.eq('category', options.category);
       }
-      if (semester && semester !== 'All') {
-        query = query.eq('semester', semester);
+      if (options.semester && options.semester !== 'All') {
+        query = query.eq('semester', options.semester);
       }
       const { data, error } = await query;
       if (!error && data) {
-        dbResources = data.map((d) => ({
+        dbResources = (data as any[]).map((d) => ({
           id: d.id,
           title: d.title,
           description: d.description || null,
-          subject: d.subject_name || 'General',
-          unit_or_topic: d.unit_or_topic || 'General Topic',
+          subject: (d.subject_name as string) || 'General',
+          unit_or_topic: (d.unit_or_topic as string) || 'General Topic',
           category: (d.category as AcademicResource['category']) || 'Notes',
-          semester: d.semester || 'Semester 1',
-          class_group: d.class_group || 'All',
+          semester: (d.semester as string) || 'Semester 1',
+          class_group: (d.class_group as string) || 'All',
           file_url: d.file_url,
-          file_size: d.file_size || '1.2 MB',
-          file_type: d.file_type || 'PDF',
+          file_size: (d.file_size as string) || '1.2 MB',
+          file_type: (d.file_type as string) || 'PDF',
           uploader_name: d.uploader_name || 'Faculty',
           created_at: d.created_at,
           is_bookmarked: false,
-          exam_year: d.exam_year || undefined,
-          exam_type: d.exam_type || undefined,
+          exam_year: (d.exam_year as string) || undefined,
+          exam_type: (d.exam_type as string) || undefined,
+          department_id: (d.department_id as string) || undefined,
+          branch_id: (d.branch_id as string) || undefined,
+          section_id: (d.section_id as string) || undefined,
         }));
       }
     } catch {
       // Fallback
     }
 
+    // Cloud Firestore synchronization for cross-device visibility
+    let firestoreResources: AcademicResource[] = [];
+    try {
+      const snap = await getDocs(collection(db, 'resources'));
+      snap.forEach((d) => {
+        firestoreResources.push({ ...(d.data() as AcademicResource), id: d.id });
+      });
+    } catch {
+      // Fallback
+    }
+
     const localResources = getStored<AcademicResource[]>('study_companion_local_resources_v3', []);
     const combined = [...dbResources];
+    for (const fr of firestoreResources) {
+      if (!combined.some((r) => r.id === fr.id)) {
+        combined.push(fr);
+      }
+    }
     for (const lr of localResources) {
       if (!combined.some((r) => r.id === lr.id)) {
         combined.push(lr);
@@ -917,11 +1177,43 @@ export const academicService = {
     }
 
     let final = combined;
-    if (category && category !== 'All') {
-      final = final.filter((r) => r.category === category);
+    if (options.category && options.category !== 'All') {
+      final = final.filter((r) => r.category === options.category);
     }
-    if (semester && semester !== 'All') {
-      final = final.filter((r) => r.semester === semester);
+    if (options.semester && options.semester !== 'All') {
+      final = final.filter((r) => !r.semester || r.semester === 'All' || matchesSemester(r.semester, options.semester));
+    }
+    if (options.subject && options.subject !== 'All') {
+      final = final.filter(
+        (r) =>
+          r.subject?.toLowerCase() === options.subject?.toLowerCase() ||
+          (r.subject_id && r.subject_id === options.subject)
+      );
+    }
+    if (options.department_id) {
+      final = final.filter((r) => !r.department_id || r.department_id === options.department_id);
+    }
+    if (options.branch_id) {
+      final = final.filter((r) => !r.branch_id || r.branch_id === options.branch_id);
+    }
+    if (options.search) {
+      const q = options.search.toLowerCase().trim();
+      final = final.filter(
+        (r) =>
+          r.title.toLowerCase().includes(q) ||
+          r.subject.toLowerCase().includes(q) ||
+          r.unit_or_topic.toLowerCase().includes(q) ||
+          (r.description && r.description.toLowerCase().includes(q))
+      );
+    }
+
+    if (userId) {
+      const key = `user_bookmarks_${userId}`;
+      const bookmarks = getStored<string[]>(key, []);
+      final = final.map((r) => ({
+        ...r,
+        is_bookmarked: bookmarks.includes(r.id),
+      }));
     }
 
     return final;
@@ -952,7 +1244,7 @@ export const academicService = {
     let publicUrl = '';
     try {
       const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('academic-documents')
+        .from('pdfs')
         .upload(`uploads/${cleanFileName}`, file, {
           cacheControl: '3600',
           upsert: true,
@@ -960,7 +1252,7 @@ export const academicService = {
 
       if (!uploadError && uploadData) {
         const { data: urlData } = supabase.storage
-          .from('academic-documents')
+          .from('pdfs')
           .getPublicUrl(uploadData.path);
         publicUrl = urlData?.publicUrl || '';
       }
@@ -1026,6 +1318,13 @@ export const academicService = {
       section_id: metadata.section_id,
     };
 
+    // Sync to Firestore for real cross-user visibility
+    try {
+      await setDoc(doc(db, 'resources', newResource.id), newResource);
+    } catch (fsErr) {
+      console.warn('Firestore setDoc resource warning:', fsErr);
+    }
+
     const local = getStored<AcademicResource[]>('study_companion_local_resources_v3', []);
     local.unshift(newResource);
     setStored('study_companion_local_resources_v3', local);
@@ -1036,6 +1335,27 @@ export const academicService = {
     });
 
     return newResource;
+  },
+
+  async uploadAndCreateResource(
+    file: File,
+    metadata: {
+      title: string;
+      description?: string;
+      subject: string;
+      unit_or_topic?: string;
+      category: AcademicResource['category'];
+      semester: string;
+      class_group?: string;
+      exam_year?: string;
+      exam_type?: string;
+      department_id?: string;
+      branch_id?: string;
+      section_id?: string;
+    },
+    uploaderName: string = 'Admin'
+  ): Promise<AcademicResource> {
+    return this.uploadResource(file, metadata, uploaderName);
   },
 
   async deleteResource(id: string): Promise<boolean> {
@@ -1143,6 +1463,10 @@ export const academicService = {
     section?: string;
     class_group?: string;
     status?: UserStatus;
+    department_id?: string;
+    branch_id?: string;
+    section_id?: string;
+    academic_year_id?: string;
   }): Promise<{ success: boolean; user?: AdminUserItem; error?: string }> {
     const email = userData.email.trim().toLowerCase();
     const fullName = userData.full_name.trim();
@@ -1200,6 +1524,10 @@ export const academicService = {
         role,
         status: initialStatus,
         is_active: initialStatus === 'active',
+        department_id: userData.department_id || null,
+        branch_id: userData.branch_id || null,
+        section_id: userData.section_id || null,
+        academic_year_id: userData.academic_year_id || null,
         created_at: new Date().toISOString(),
       });
     } catch (fsErr) {
@@ -1226,6 +1554,10 @@ export const academicService = {
       class_group: classGroup,
       status: initialStatus,
       is_active: initialStatus === 'active',
+      department_id: userData.department_id,
+      branch_id: userData.branch_id,
+      section_id: userData.section_id,
+      academic_year_id: userData.academic_year_id,
       created_at: new Date().toISOString(),
     };
 
@@ -1405,6 +1737,10 @@ export const academicService = {
     academic_year?: string;
     department?: string;
     adminName?: string;
+    department_id?: string;
+    branch_id?: string;
+    section_id?: string;
+    academic_year_id?: string;
   }): Promise<Classmate | null> {
     const res = await this.createUser({
       full_name: student.full_name,
@@ -1418,6 +1754,10 @@ export const academicService = {
       academic_year: student.academic_year || '2026–27',
       year_of_study: '1st Year',
       status: 'active',
+      department_id: student.department_id,
+      branch_id: student.branch_id,
+      section_id: student.section_id,
+      academic_year_id: student.academic_year_id,
     });
 
     if (res.success && res.user) {
@@ -1625,6 +1965,75 @@ export const academicService = {
     return true;
   },
 
+  async submitReport(report: {
+    reporter_name: string;
+    reporter_email: string;
+    report_type: string;
+    subject: string;
+    description: string;
+    user_id?: string | null;
+  }): Promise<ReportItem> {
+    const newReport: ReportItem = {
+      id: generateId('rep'),
+      reporter_name: report.reporter_name,
+      reporter_email: report.reporter_email,
+      report_type: report.report_type,
+      subject: report.subject,
+      description: report.description,
+      user_id: report.user_id || null,
+      status: 'pending',
+      created_at: new Date().toISOString(),
+    };
+
+    try {
+      await setDoc(doc(db, 'reports', newReport.id), newReport);
+    } catch (e) {
+      console.warn('Firestore report submission error, cached locally:', e);
+    }
+
+    const list = getStored<ReportItem[]>(STORAGE_KEYS.REPORTS_CACHE, []);
+    list.unshift(newReport);
+    setStored(STORAGE_KEYS.REPORTS_CACHE, list);
+    return newReport;
+  },
+
+  // ==========================================================================
+  // RATINGS & FEEDBACK
+  // ==========================================================================
+  async getRatings(): Promise<RatingFeedback[]> {
+    return getStored<RatingFeedback[]>(STORAGE_KEYS.RATINGS, [
+      {
+        id: 'rate-1',
+        rating: 5,
+        feedback: 'The academic schedule and resource updates are seamless and timely!',
+        category: 'Overall Platform',
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: 'rate-2',
+        rating: 5,
+        feedback: 'Clean UI and fast downloads for syllabus documents.',
+        category: 'Lecture Notes Quality',
+        created_at: new Date(Date.now() - 86400000).toISOString(),
+      },
+    ]);
+  },
+
+  async submitRating(rating: number, feedback: string, category: string, userId?: string): Promise<RatingFeedback> {
+    const list = await this.getRatings();
+    const newRating: RatingFeedback = {
+      id: generateId('rate'),
+      rating,
+      feedback,
+      category,
+      user_id: userId || auth.currentUser?.uid,
+      created_at: new Date().toISOString(),
+    };
+    list.unshift(newRating);
+    setStored(STORAGE_KEYS.RATINGS, list);
+    return newRating;
+  },
+
   // ==========================================================================
   // AUDIT & ACTIVITY LOGGING
   // ==========================================================================
@@ -1690,25 +2099,40 @@ export const academicService = {
   }): Promise<DriveCourse[]> {
     let list = getStored<DriveCourse[]>(STORAGE_KEYS.DRIVE_COURSES, []);
 
+    // Sync from Firestore for real cross-user visibility
+    try {
+      const snap = await getDocs(query(collection(db, 'drive_courses'), orderBy('created_at', 'desc')));
+      if (!snap.empty) {
+        snap.forEach((d) => {
+          const item = { ...(d.data() as DriveCourse), id: d.id };
+          if (!list.some((c) => c.id === item.id)) {
+            list.unshift(item);
+          }
+        });
+        setStored(STORAGE_KEYS.DRIVE_COURSES, list);
+      }
+    } catch {
+      // Fallback to local storage
+    }
+
     if (filters) {
       if (filters.status && filters.status !== 'all') {
         list = list.filter((c) => c.status === filters.status);
       }
       if (filters.department && filters.department !== 'all') {
-        list = list.filter((c) => !c.department || c.department === 'All' || c.department.toLowerCase().includes(filters.department!.toLowerCase()));
+        list = list.filter((c) => matchesDepartment(c.department, filters.department));
       }
       if (filters.branch && filters.branch !== 'all') {
-        const bQ = filters.branch.toLowerCase();
-        list = list.filter((c) => !c.branch || c.branch === 'All' || c.branch.toLowerCase().includes(bQ) || bQ.includes(c.branch.toLowerCase()));
+        list = list.filter((c) => matchesBranch(c.branch, filters.branch));
       }
       if (filters.year && filters.year !== 'all') {
-        list = list.filter((c) => !c.year_of_study || c.year_of_study === 'All' || c.year_of_study.toLowerCase().includes(filters.year!.toLowerCase()));
+        list = list.filter((c) => matchesYear(c.year_of_study, filters.year));
       }
       if (filters.semester && filters.semester !== 'all') {
-        list = list.filter((c) => !c.semester || c.semester === 'All' || c.semester.toLowerCase().includes(filters.semester!.toLowerCase()));
+        list = list.filter((c) => matchesSemester(c.semester, filters.semester));
       }
       if (filters.section && filters.section !== 'all') {
-        list = list.filter((c) => !c.section || c.section === 'All' || c.section.trim().toUpperCase() === filters.section!.trim().toUpperCase());
+        list = list.filter((c) => matchesSection(c.section, filters.section));
       }
       if (filters.search && filters.search.trim()) {
         const q = filters.search.trim().toLowerCase();
@@ -1726,7 +2150,18 @@ export const academicService = {
 
   async getDriveCourseById(id: string): Promise<DriveCourse | null> {
     const list = getStored<DriveCourse[]>(STORAGE_KEYS.DRIVE_COURSES, []);
-    return list.find((c) => c.id === id) || null;
+    const found = list.find((c) => c.id === id);
+    if (found) return found;
+
+    try {
+      const snap = await getDoc(doc(db, 'drive_courses', id));
+      if (snap.exists()) {
+        return { ...(snap.data() as DriveCourse), id: snap.id };
+      }
+    } catch {
+      // Fallback
+    }
+    return null;
   },
 
   async createDriveCourse(courseData: Omit<DriveCourse, 'id' | 'created_at' | 'updated_at'>): Promise<DriveCourse> {
@@ -1764,6 +2199,13 @@ export const academicService = {
 
     list.unshift(newCourse);
     setStored(STORAGE_KEYS.DRIVE_COURSES, list);
+
+    try {
+      await setDoc(doc(db, 'drive_courses', newCourse.id), newCourse);
+    } catch (fsErr) {
+      console.warn('Firestore setDoc drive_courses warning:', fsErr);
+    }
+
     await this.logAdminAudit(courseData.created_by || 'Admin', 'Create Drive Course', 'drive_courses', newCourse.id, {
       title: newCourse.title,
       target_year: newCourse.year_of_study,
@@ -1793,6 +2235,13 @@ export const academicService = {
       updated_at: new Date().toISOString(),
     };
     setStored(STORAGE_KEYS.DRIVE_COURSES, list);
+
+    try {
+      await updateDoc(doc(db, 'drive_courses', id), updatedData);
+    } catch {
+      // ignore
+    }
+
     await this.logAdminAudit('Admin', 'Update Drive Course', 'drive_courses', id, updates);
     return true;
   },
@@ -1807,6 +2256,12 @@ export const academicService = {
     list[idx].updated_at = new Date().toISOString();
     setStored(STORAGE_KEYS.DRIVE_COURSES, list);
 
+    try {
+      await updateDoc(doc(db, 'drive_courses', id), { status: newStatus, updated_at: list[idx].updated_at });
+    } catch {
+      // ignore
+    }
+
     await this.logAdminAudit('Admin', `${newStatus === 'published' ? 'Publish' : 'Unpublish'} Drive Course`, 'drive_courses', id, { newStatus });
     return { success: true, newStatus };
   },
@@ -1817,6 +2272,13 @@ export const academicService = {
     if (filtered.length === list.length) return false;
 
     setStored(STORAGE_KEYS.DRIVE_COURSES, filtered);
+
+    try {
+      await deleteDoc(doc(db, 'drive_courses', id));
+    } catch {
+      // ignore
+    }
+
     await this.logAdminAudit('Admin', 'Delete Drive Course', 'drive_courses', id);
     return true;
   },
@@ -1827,50 +2289,29 @@ export const academicService = {
    */
   async getStudentDriveCourses(profile: UserProfile | null): Promise<StudentDriveCourseItem[]> {
     if (!profile) return [];
-    if (profile.status !== 'active' || profile.is_active === false) return [];
+    if (profile.status === 'inactive' || profile.status === 'suspended' || profile.is_active === false) return [];
 
-    const list = getStored<DriveCourse[]>(STORAGE_KEYS.DRIVE_COURSES, []);
+    const list = await this.getDriveCourses();
 
     // 1. Must be published
     const published = list.filter((c) => c.status === 'published');
 
     // 2. Strict targeting match against student profile
     const matched = published.filter((c) => {
-      // Department
-      if (c.department && c.department !== 'All' && profile.department) {
-        if (!c.department.toLowerCase().includes(profile.department.toLowerCase()) &&
-            !profile.department.toLowerCase().includes(c.department.toLowerCase())) {
-          return false;
-        }
+      if (!matchesDepartment(c.department, profile.department, c.department_id, profile.department_id || undefined)) {
+        return false;
       }
-      // Branch
-      if (c.branch && c.branch !== 'All' && profile.branch) {
-        if (!c.branch.toLowerCase().includes(profile.branch.toLowerCase()) &&
-            !profile.branch.toLowerCase().includes(c.branch.toLowerCase())) {
-          return false;
-        }
+      if (!matchesBranch(c.branch, profile.branch, c.branch_id, profile.branch_id || undefined)) {
+        return false;
       }
-      // Year of Study (e.g., 2nd Year student sees 2nd Year; 1st Year student does NOT see 2nd Year)
-      if (c.year_of_study && c.year_of_study !== 'All' && profile.year_of_study) {
-        const cYear = c.year_of_study.replace(/[^0-9]/g, '');
-        const pYear = profile.year_of_study.replace(/[^0-9]/g, '');
-        if (cYear && pYear && cYear !== pYear) {
-          return false;
-        }
+      if (!matchesYear(c.year_of_study, profile.year_of_study)) {
+        return false;
       }
-      // Semester
-      if (c.semester && c.semester !== 'All' && profile.semester) {
-        const cSem = c.semester.replace(/[^0-9]/g, '');
-        const pSem = profile.semester.replace(/[^0-9]/g, '');
-        if (cSem && pSem && cSem !== pSem) {
-          return false;
-        }
+      if (!matchesSemester(c.semester, profile.semester)) {
+        return false;
       }
-      // Section
-      if (c.section && c.section !== 'All' && profile.section) {
-        if (c.section.trim().toUpperCase() !== profile.section.trim().toUpperCase()) {
-          return false;
-        }
+      if (!matchesSection(c.section, profile.section)) {
+        return false;
       }
       return true;
     });
@@ -1906,7 +2347,7 @@ export const academicService = {
     }
 
     // 2. Verify account is active
-    if (profile.status !== 'active' || profile.is_active === false) {
+    if (profile.status === 'inactive' || profile.status === 'suspended' || profile.is_active === false) {
       return { error: 'Your account is currently inactive. Please contact your college administrator.' };
     }
 
@@ -1922,36 +2363,14 @@ export const academicService = {
     }
 
     // 5. Verify academic targeting
-    if (course.department && course.department !== 'All' && profile.department) {
-      if (!course.department.toLowerCase().includes(profile.department.toLowerCase()) &&
-          !profile.department.toLowerCase().includes(course.department.toLowerCase())) {
-        return { error: "You don't have access to this course." };
-      }
-    }
-    if (course.branch && course.branch !== 'All' && profile.branch) {
-      if (!course.branch.toLowerCase().includes(profile.branch.toLowerCase()) &&
-          !profile.branch.toLowerCase().includes(course.branch.toLowerCase())) {
-        return { error: "You don't have access to this course." };
-      }
-    }
-    if (course.year_of_study && course.year_of_study !== 'All' && profile.year_of_study) {
-      const cYear = course.year_of_study.replace(/[^0-9]/g, '');
-      const pYear = profile.year_of_study.replace(/[^0-9]/g, '');
-      if (cYear && pYear && cYear !== pYear) {
-        return { error: "You don't have access to this course." };
-      }
-    }
-    if (course.semester && course.semester !== 'All' && profile.semester) {
-      const cSem = course.semester.replace(/[^0-9]/g, '');
-      const pSem = profile.semester.replace(/[^0-9]/g, '');
-      if (cSem && pSem && cSem !== pSem) {
-        return { error: "You don't have access to this course." };
-      }
-    }
-    if (course.section && course.section !== 'All' && profile.section) {
-      if (course.section.trim().toUpperCase() !== profile.section.trim().toUpperCase()) {
-        return { error: "You don't have access to this course." };
-      }
+    if (
+      !matchesDepartment(course.department, profile.department, course.department_id, profile.department_id || undefined) ||
+      !matchesBranch(course.branch, profile.branch, course.branch_id, profile.branch_id || undefined) ||
+      !matchesYear(course.year_of_study, profile.year_of_study) ||
+      !matchesSemester(course.semester, profile.semester) ||
+      !matchesSection(course.section, profile.section)
+    ) {
+      return { error: "You don't have access to this course." };
     }
 
     // 6. Access granted
